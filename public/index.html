@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RentaVisión · Gestión de equipos audiovisuales</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="layout">
+  <!-- Sidebar estilo v0 -->
+  <aside class="sidebar" id="sidebar">
+    <div class="brand"><div class="logo">◉</div>
+      <div><div class="brand-name">RentaVisión</div><div class="brand-sub">Gestión de equipos AV</div></div>
+    </div>
+    <div class="nav-label">Principal</div>
+    <nav class="nav">
+      <button data-view="panel" class="active">▦ Panel</button>
+      <button data-view="inventario">▣ Inventario</button>
+      <button data-view="alquileres">◷ Alquileres</button>
+      <button data-view="clientes">⛉ Clientes</button>
+    </nav>
+    <div class="nav-foot"><div class="user"><span class="avatar">OP</span><span>Operaciones<br><small>Mostrador / Galpón</small></span></div></div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <button class="menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')">☰</button>
+      <div><h1 id="viewTitle">Panel</h1><p id="viewSub">Resumen de la operación de alquileres</p></div>
+      <div class="top-actions">
+        <input id="q" placeholder="Buscar equipo, cliente...">
+        <button class="btn dark" onclick="go('alquileres');openReserva()">+ Nuevo alquiler</button>
+      </div>
+    </header>
+
+    <!-- PANEL -->
+    <section id="view-panel" class="view">
+      <div class="kpis">
+        <div class="card kpi"><span class="kpi-label">Alquileres activos</span><span class="kpi-num" id="kAct">–</span><span class="kpi-sub" id="kActSub"></span></div>
+        <div class="card kpi"><span class="kpi-label">Equipos disponibles</span><span class="kpi-num" id="kEq">–</span><span class="kpi-sub">listos para alquilar</span></div>
+        <div class="card kpi"><span class="kpi-label">Cobrado del mes</span><span class="kpi-num" id="kCash">–</span><span class="kpi-sub">señas + saldos</span></div>
+        <div class="card kpi alert"><span class="kpi-label">Devoluciones vencidas</span><span class="kpi-num" id="kVen">–</span><span class="kpi-sub">requieren atención</span></div>
+      </div>
+      <div class="grid2">
+        <div class="card"><h3>Vencen hoy / vencidos</h3><div id="tVenc" class="tbl-wrap"></div></div>
+        <div class="card"><h3>Deudores</h3><div id="tDeud" class="tbl-wrap"></div></div>
+      </div>
+    </section>
+
+    <!-- INVENTARIO -->
+    <section id="view-inventario" class="view hidden">
+      <div class="card">
+        <div class="row-between"><h3>Catálogo de equipos</h3>
+          <div class="filters"><select id="fCat"><option value="">Todas las categorías</option></select>
+          <select id="fEst"><option value="">Todos los estados</option><option>DISPONIBLE</option><option>ALQUILADO</option><option>MANTENIMIENTO</option><option>DANADO</option></select></div>
+        </div>
+        <div id="tEq" class="tbl-wrap"></div>
+      </div>
+      <div class="card"><h3>Verificar disponibilidad real (R1 + R2)</h3>
+        <div class="form-row"><select id="dEq"></select><input id="dIni" type="date"><input id="dFin" type="date">
+        <button class="btn" onclick="verDisp()">Ver</button><span id="dRes" class="pill"></span></div>
+        <small>Un equipo solo está LIBRE si está DISPONIBLE y sin otra reserva que solape esas fechas.</small>
+      </div>
+    </section>
+
+    <!-- ALQUILERES -->
+    <section id="view-alquileres" class="view hidden">
+      <div class="card">
+        <div class="row-between"><h3>Reservas y contratos</h3>
+          <div class="tabs" id="tabsEst">
+            <button data-e="" class="active">Todos</button><button data-e="RESERVADO">Reservados</button>
+            <button data-e="ACTIVO">Activos</button><button data-e="VENCIDO">Vencidos</button><button data-e="DEVUELTO">Devueltos</button>
+          </div>
+        </div>
+        <div id="tAlq" class="tbl-wrap"></div>
+      </div>
+      <div class="card" id="reservaCard"><h3>Nuevo alquiler / presupuesto (HU02)</h3>
+        <div class="form-grid">
+          <label>Cliente<select id="rCli"></select></label>
+          <label>Retiro<input id="rIni" type="date"></label>
+          <label>Devolución<input id="rFin" type="date"></label>
+          <label>Equipos (Ctrl+clic varios)<select id="rEqs" multiple size="4"></select></label>
+          <label>Garantía<select id="rGar"><option>DNI_RETENIDO</option><option>PAGARE</option><option>DEPOSITO</option><option>OTRO</option></select></label>
+        </div>
+        <button class="btn dark" onclick="reservar()">Reservar</button> <span id="rRes"></span>
+        <hr><h4>Retiro / Devolución</h4>
+        <div class="form-row"><input id="mAlq" placeholder="ID alquiler (ej 1)"><button class="btn" onclick="retiro()">Marcar retiro</button><button class="btn" onclick="devol()">Marcar devolución OK</button><span id="mRes"></span></div>
+      </div>
+    </section>
+
+    <!-- CLIENTES / COBRANZA -->
+    <section id="view-clientes" class="view hidden">
+      <div class="grid2">
+        <div class="card"><h3>Clientes</h3><div id="tCli" class="tbl-wrap"></div></div>
+        <div class="card"><h3>Cobranza (HU06)</h3>
+          <div class="form-row"><input id="pAlq" placeholder="ID alquiler"><button class="btn" onclick="verSaldo()">Ver saldo</button></div>
+          <div class="form-row"><select id="pTipo"><option>SENA</option><option>SALDO</option><option>RECARGO_MORA</option></select>
+          <input id="pMonto" type="number" placeholder="Monto $"><button class="btn dark" onclick="pagar()">Cobrar</button></div>
+          <div id="rPago"></div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

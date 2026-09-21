@@ -9,6 +9,7 @@ const app = express();
 const PORT = 3000;
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(express.static(path.join(__dirname, 'public')));
 
 // --- DB ---
 const DB_PATH = path.join(__dirname, 'alquiler.db');
@@ -63,6 +64,22 @@ function diasEntre(ini, fin) {
 // --- API ---
 app.get('/api/equipos', (req, res) => {
   res.json(db.prepare('SELECT e.*, c.nombre categoria FROM equipos e LEFT JOIN categorias c ON c.id=e.categoria_id').all());
+});
+
+// Listas para el panel RentaVisión
+app.get('/api/clientes', (req, res) => {
+  res.json(db.prepare('SELECT * FROM clientes ORDER BY nombre').all());
+});
+
+app.get('/api/alquileres', (req, res) => {
+  const rows = db.prepare(`SELECT a.*, c.nombre cliente FROM alquileres a
+    JOIN clientes c ON c.id=a.cliente_id ORDER BY a.id DESC`).all();
+  res.json(rows.map(a => ({
+    ...a,
+    equipos: db.prepare(`SELECT e.codigo, e.nombre FROM detalle_alquiler d
+      JOIN equipos e ON e.id=d.equipo_id WHERE d.alquiler_id=?`).all(a.id),
+    pagado: db.prepare('SELECT IFNULL(SUM(monto),0) s FROM pagos WHERE alquiler_id=?').get(a.id).s
+  })));
 });
 
 app.post('/api/equipos/estado', (req, res) => {
@@ -184,8 +201,8 @@ app.get('/api/alquileres/:id', (req, res) => {
   res.json({ ...a, detalle: det, pagos, garantias: gar, pagado, saldo: Math.round(a.total_presupuesto - pagado) });
 });
 
-// --- Pantalla única (mostrador + celular) ---
-app.get('/', (req, res) => {
+// --- Pantalla vieja (respaldo, la nueva está en public/index.html) ---
+app.get('/mostrador-viejo', (req, res) => {
   const equipos = db.prepare('SELECT * FROM equipos').all();
   const clientes = db.prepare('SELECT * FROM clientes').all();
   const optsEq = equipos.map(e => `<option value="${e.id}">${e.codigo} - ${e.nombre} (${e.estado_operativo}) $${e.precio_dia}/día</option>`).join('');

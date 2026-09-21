@@ -16,17 +16,26 @@ const DB_PATH = path.join(__dirname, 'alquiler.db');
 const db = new DatabaseSync(DB_PATH);
 db.exec('PRAGMA foreign_keys = ON;');
 db.exec(fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8'));
+// Migración: mora persistida (enunciado: penalidades por mora)
+try { db.exec('ALTER TABLE alquileres ADD COLUMN total_mora REAL DEFAULT 0'); } catch (e) { /* ya existe */ }
 
-// Seed mínimo si está vacío
+// Seed mínimo si está vacío (enunciado: cámaras, lentes, consolas, micrófonos, luces, generadores)
 if (db.prepare('SELECT COUNT(*) c FROM equipos').get().c === 0) {
-  db.prepare("INSERT INTO categorias (nombre) VALUES ('Camaras'),('Sonido'),('Luces')").run();
+  db.prepare("INSERT INTO categorias (nombre) VALUES ('Camaras'),('Lentes'),('Sonido'),('Luces'),('Generadores')").run();
   db.prepare(`INSERT INTO equipos (codigo,categoria_id,nombre,valor_reposicion,precio_dia,estado_operativo) VALUES
     ('CAM-SONY-A7-01',1,'Sony A7 III',2500,15000,'DISPONIBLE'),
-    ('CON-YAM-01',2,'Consola Yamaha TF1',4000,20000,'DISPONIBLE'),
-    ('MIC-SEN-01',2,'Mic Senheiser EW',800,5000,'MANTENIMIENTO')`).run();
+    ('CAM-BMPCC-01',1,'Blackmagic Pocket 6K',3000,22000,'DISPONIBLE'),
+    ('LEN-CANON-01',2,'Lente Canon RF 24-70',1800,8000,'DISPONIBLE'),
+    ('CON-YAM-01',3,'Consola Yamaha TF1',4000,20000,'DISPONIBLE'),
+    ('MIC-SEN-01',3,'Mic Sennheiser EW',800,5000,'DISPONIBLE'),
+    ('MIC-RODE-01',3,'Rode Wireless GO II',600,4500,'MANTENIMIENTO'),
+    ('LUZ-APU-01',4,'Aputure 600D Pro',1500,12000,'DISPONIBLE'),
+    ('GEN-HON-01',5,'Generador Honda 5kW',2500,18000,'DISPONIBLE')`).run();
   db.prepare(`INSERT INTO clientes (tipo,nombre,whatsapp) VALUES
-    ('PRODUCTORA','Productora Sur','1100000001'),
-    ('INDEPENDIENTE','Juan Videoclip','1100000002')`).run();
+    ('PRODUCTORA','Onda Films','1100000001'),
+    ('AGENCIA','Estudio Nomada','1100000002'),
+    ('SONIDISTA','Ferrer Producciones','1100000003'),
+    ('INDEPENDIENTE','Colectivo Luz','1100000004')`).run();
   console.log('Seed inicial cargado');
 }
 
@@ -156,8 +165,32 @@ app.post('/api/alquileres/:id/devolucion', (req, res) => { // HU04 + R4/R5
     db.prepare('INSERT INTO movimientos (equipo_id,alquiler_id,fecha,tipo,estado_recibido) VALUES (?,?,?,?,?)')
       .run(d.equipo_id, alq.id, hoy, 'DEVOLUCION', est);
   }
-  db.prepare("UPDATE alquileres SET estado='DEVUELTO', fecha_devolucion_real=? WHERE id=?").run(hoy, alq.id);
+  db.prepare("UPDATE alquileres SET estado='DEVUELTO', fecha_devolucion_real=?, total_mora=? WHERE id=?").run(hoy, Math.round(mora), alq.id);
   res.json({ ok: true, mora_calculada: Math.round(mora) });
+});
+
+// Prórroga telefónica formalizada (R6): solo si no colisiona con otra reserva
+app.post('/api/alquileres/:id/prorroga', (req, res) => {
+  const alq = db.prepare('SELECT * FROM alquileres WHERE id=?').get(req.params.id);
+  if (!alq || !['RESERVADO', 'ACTIVO', 'VENCIDO'].includes(alq.estado))
+    return res.status(400).json({ error: 'Solo RESERVADO/ACTIVO/VENCIDO' });
+  const { nueva_fin } = req.body;
+  if (!nueva_fin || nueva_fin <= alq.fecha_devolucion_prevista)
+    return res.status(400).json({ error: 'nueva_fin debe ser mayor a la actual' });
+  for (const d of db.prepare('SELECT * FROM detalle_alquiler WHERE alquiler_id=?').all(alq.id)) {
+    if (equipoOcupadoEn(d.equipo_id, alq.fecha_retiro_prevista, nueva_fin, alq.id))
+      return res.status(409).json({ error: `Equipo ${d.equipo_id} colisiona en la extensión (R6)` });
+  }
+  // Recalcula subtotales al nuevo rango
+  const dias = diasEntre(alq.fecha_retiro_prevista, nueva_fin);
+  let total = 0;
+  for (const d of db.prepare('SELECT * FROM detalle_alquiler WHERE alquiler_id=?').all(alq.id)) {
+    const sub = d.precio_dia * dias; total += sub;
+    db.prepare('UPDATE detalle_alquiler SET subtotal=? WHERE id=?').run(sub, d.id);
+  }
+  db.prepare('UPDATE alquileres SET fecha_devolucion_prevista=?, total_presupuesto=?, estado=? WHERE id=?')
+    .run(nueva_fin, total, alq.estado === 'VENCIDO' ? 'ACTIVO' : alq.estado, alq.id);
+  res.json({ ok: true, total, dias });
 });
 
 app.get('/api/vencimientos', (req, res) => { // HU05
@@ -172,12 +205,66 @@ app.get('/api/vencimientos', (req, res) => { // HU05
   res.json(rows);
 });
 
-app.get('/api/deudores', (req, res) => { // HU07
-  const rows = db.prepare(`SELECT a.id, c.nombre cliente, a.total_presupuesto,
+app.get('/api/deudores', (req, res) => { // HU07 (incluye mora persistida)
+  const rows = db.prepare(`SELECT a.id, c.nombre cliente, a.total_presupuesto, IFNULL(a.total_mora,0) total_mora,
     IFNULL((SELECT SUM(monto) FROM pagos p WHERE p.alquiler_id=a.id),0) pagado,
     a.estado, a.fecha_devolucion_prevista FROM alquileres a JOIN clientes c ON c.id=a.cliente_id
     WHERE a.estado != 'CANCELADO'`).all();
-  res.json(rows.map(r => ({ ...r, saldo: Math.round(r.total_presupuesto - r.pagado) })).filter(r => r.saldo > 0));
+  res.json(rows.map(r => ({ ...r, saldo: Math.round(r.total_presupuesto + r.total_mora - r.pagado) })).filter(r => r.saldo > 0));
+});
+
+// Alta de cliente y equipo (Acciones rápidas del panel)
+app.post('/api/clientes', (req, res) => {
+  const { tipo, nombre, whatsapp } = req.body;
+  if (!nombre) return res.status(400).json({ error: 'nombre requerido' });
+  const r = db.prepare('INSERT INTO clientes (tipo,nombre,whatsapp) VALUES (?,?,?)').run(tipo || 'INDEPENDIENTE', nombre, whatsapp || '');
+  res.json({ ok: true, id: r.lastInsertRowid });
+});
+
+app.post('/api/equipos', (req, res) => {
+  const { codigo, categoria_id, nombre, precio_dia, valor_reposicion } = req.body;
+  if (!codigo || !nombre) return res.status(400).json({ error: 'codigo y nombre requeridos' });
+  try {
+    const r = db.prepare('INSERT INTO equipos (codigo,categoria_id,nombre,precio_dia,valor_reposicion,estado_operativo) VALUES (?,?,?,?,?,?)')
+      .run(codigo, categoria_id || 1, nombre, precio_dia || 0, valor_reposicion || 0, 'DISPONIBLE');
+    res.json({ ok: true, id: r.lastInsertRowid });
+  } catch (e) { res.status(409).json({ error: 'código duplicado' }); }
+});
+
+app.get('/api/categorias', (req, res) => {
+  res.json(db.prepare('SELECT * FROM categorias ORDER BY nombre').all());
+});
+
+// Resumen del panel: KPIs + disponibilidad por categoría + ingresos 6 meses + recientes
+app.get('/api/resumen', (req, res) => {
+  const hoy = new Date().toISOString().slice(0, 10);
+  const mes = hoy.slice(0, 7);
+  const eq = db.prepare('SELECT e.*, c.nombre categoria FROM equipos e LEFT JOIN categorias c ON c.id=e.categoria_id').all();
+  const alq = db.prepare('SELECT * FROM alquileres').all();
+  const vencidos = alq.filter(a => ['ACTIVO', 'VENCIDO'].includes(a.estado) && a.fecha_devolucion_prevista < hoy).length;
+  const cobradoMes = db.prepare("SELECT IFNULL(SUM(monto),0) s FROM pagos WHERE substr(fecha,1,7)=?").get(mes).s;
+  // ingresos últimos 6 meses
+  const ing = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(); d.setMonth(d.getMonth() - i);
+    const k = d.toISOString().slice(0, 7);
+    ing.push({ mes: k, total: db.prepare('SELECT IFNULL(SUM(monto),0) s FROM pagos WHERE substr(fecha,1,7)=?').get(k).s });
+  }
+  // disponibilidad por categoría
+  const porCat = {};
+  for (const e of eq) {
+    const k = e.categoria || 'Sin categoría';
+    porCat[k] = porCat[k] || { total: 0, libres: 0 };
+    porCat[k].total++; if (e.estado_operativo === 'DISPONIBLE') porCat[k].libres++;
+  }
+  const recientes = db.prepare(`SELECT a.id, c.nombre cliente, a.fecha_retiro_prevista, a.fecha_devolucion_prevista,
+    a.estado, a.total_presupuesto FROM alquileres a JOIN clientes c ON c.id=a.cliente_id ORDER BY a.id DESC LIMIT 6`).all();
+  res.json({
+    activos: alq.filter(a => a.estado === 'ACTIVO').length,
+    reservados: alq.filter(a => a.estado === 'RESERVADO').length,
+    disponibles: eq.filter(e => e.estado_operativo === 'DISPONIBLE').length, totalEquipos: eq.length,
+    cobradoMes, vencidos, ingresos: ing, porCategoria: porCat, recientes
+  });
 });
 
 app.post('/api/pagos', (req, res) => { // HU06
@@ -198,7 +285,7 @@ app.get('/api/alquileres/:id', (req, res) => {
   const pagos = db.prepare('SELECT * FROM pagos WHERE alquiler_id=? ORDER BY id').all(a.id);
   const gar = db.prepare('SELECT * FROM garantias WHERE alquiler_id=?').all(a.id);
   const pagado = pagos.reduce((s, p) => s + p.monto, 0);
-  res.json({ ...a, detalle: det, pagos, garantias: gar, pagado, saldo: Math.round(a.total_presupuesto - pagado) });
+  res.json({ ...a, detalle: det, pagos, garantias: gar, pagado, saldo: Math.round(a.total_presupuesto + (a.total_mora || 0) - pagado) });
 });
 
 // --- Pantalla vieja (respaldo, la nueva está en public/index.html) ---

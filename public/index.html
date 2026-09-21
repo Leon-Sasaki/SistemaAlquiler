@@ -12,17 +12,20 @@
 .p-DISPONIBLE,.p-DEVUELTO{background:#dcfce7;color:#166534}.p-ALQUILADO,.p-ACTIVO{background:#dbeafe;color:#1d4ed8}
 .p-MANTENIMIENTO,.p-DANADO,.p-RESERVADO{background:#fef3c7;color:#92400e}.p-VENCIDO{background:#fee2e2;color:#991b1b}
 .navbtn{display:flex;align-items:center;gap:8px;width:100%;padding:8px 10px;border-radius:8px;font-size:14px;color:#374151}
-.navbtn:hover{background:#f3f4f6}.navbtn.active{background:#f3f4f6;font-weight:600;color:#111827}
-.tabbtn{border:1px solid #e5e7eb;background:#fff;border-radius:9999px;padding:6px 12px;font-size:12px}
-.tabbtn.active{background:#111827;color:#fff;border-color:#111827}
-.bar{height:8px;background:#f3f4f6;border-radius:9999px;overflow:hidden}.bar>i{display:block;height:100%;background:#111827}
+.tabbtn{border:1px solid #b39c68;background:#e0cfa8;border-radius:9999px;padding:6px 12px;font-size:12px}
+.tabbtn.active{background:#3d3222;color:#f5edd8;border-color:#3d3222}
+.bar{height:8px;background:#c3ab7c;border-radius:9999px;overflow:hidden}.bar>i{display:block;height:100%;background:#3d3222}
+dialog{background:#ead9b6;border:1px solid #b39c68}
 dialog::backdrop{background:rgba(0,0,0,.4)}
+.navbtn:hover{background:#dcc99c}.navbtn.active{background:#dcc99c;font-weight:600;color:#111827}
+input,select,textarea{background:#f4ead2 !important;border-color:#b39c68 !important;color:#111827}
+input::placeholder{color:#8a774f}
 </style>
 </head>
-<body class="text-gray-900 antialiased" style="background:#ece2cc">
+<body class="text-gray-900 antialiased" style="background:#d3ba8a">
 <div class="flex min-h-screen">
   <!-- ============ SIDEBAR (v0) ============ -->
-  <aside id="sidebar" class="hidden md:flex w-60 shrink-0 flex-col bg-white border-r fixed md:sticky top-0 h-screen z-30">
+  <aside id="sidebar" class="hidden md:flex w-60 shrink-0 flex-col bg-[#ead9b6] border-r fixed md:sticky top-0 h-screen z-30">
     <div class="flex items-center gap-2.5 px-4 py-4">
       <div class="size-9 flex items-center justify-center rounded-lg bg-gray-900 text-white"><i data-lucide="aperture" class="size-5"></i></div>
       <div class="leading-tight"><div class="text-sm font-semibold">RentaVisión</div><div class="text-xs text-gray-500">Gestión de equipos AV</div></div>
@@ -39,14 +42,14 @@ dialog::backdrop{background:rgba(0,0,0,.4)}
       <button class="navbtn" onclick="alert('Ayuda: ver README.md y docs/')"><i data-lucide="life-buoy" class="size-4"></i>Ayuda</button>
     </nav>
     <div class="p-3 border-t flex items-center gap-2.5">
-      <div class="size-8 rounded-full bg-gray-200 flex items-center justify-center text-xs font-semibold">OP</div>
+      <div class="size-8 rounded-full bg-[#cbb27f] flex items-center justify-center text-xs font-semibold">OP</div>
       <div class="leading-tight"><div class="text-sm font-medium">Operaciones</div><div class="text-xs text-gray-500">Mostrador / Galpón</div></div>
     </div>
   </aside>
 
   <!-- ============ MAIN ============ -->
   <div class="flex-1 min-w-0">
-    <header class="sticky top-0 z-10 flex h-16 items-center gap-3 border-b bg-white/80 px-4 md:px-6 backdrop-blur">
+    <header class="sticky top-0 z-10 flex h-16 items-center gap-3 border-b bg-[#ead9b6]/80 px-4 md:px-6 backdrop-blur">
       <button class="md:hidden" onclick="document.getElementById('sidebar').classList.toggle('hidden')">☰</button>
       <div class="min-w-0"><h1 id="viewTitle" class="truncate text-base font-semibold">Panel</h1>
       <p id="viewSub" class="truncate text-xs text-gray-500">Resumen de la operación de alquileres</p></div>
@@ -63,30 +66,30 @@ dialog::backdrop{background:rgba(0,0,0,.4)}
       <!-- ===== PANEL ===== -->
       <section id="view-panel">
         <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-          <div class="bg-white rounded-xl ring-1 ring-black/10 p-4"><div class="flex items-center justify-between"><span class="text-sm text-gray-500">Alquileres activos</span><span class="size-9 rounded-lg bg-gray-100 flex items-center justify-center"><i data-lucide="calendar-clock" class="size-4"></i></span></div><div id="kAct" class="text-3xl font-medium">–</div><div id="kActSub" class="text-sm text-gray-500"></div></div>
-          <div class="bg-white rounded-xl ring-1 ring-black/10 p-4"><div class="flex items-center justify-between"><span class="text-sm text-gray-500">Equipos disponibles</span><span class="size-9 rounded-lg bg-gray-100 flex items-center justify-center"><i data-lucide="package-check" class="size-4"></i></span></div><div id="kEq" class="text-3xl font-medium">–</div><div class="text-sm text-gray-500">listos para alquilar</div></div>
-          <div class="bg-white rounded-xl ring-1 ring-black/10 p-4"><div class="flex items-center justify-between"><span class="text-sm text-gray-500">Cobrado del mes</span><span class="size-9 rounded-lg bg-gray-100 flex items-center justify-center"><i data-lucide="coins" class="size-4"></i></span></div><div id="kCash" class="text-3xl font-medium">–</div><div class="text-sm text-gray-500">señas + saldos + moras</div></div>
-          <div class="bg-white rounded-xl ring-1 ring-black/10 p-4"><div class="flex items-center justify-between"><span class="text-sm text-gray-500">Devoluciones vencidas</span><span class="size-9 rounded-lg bg-red-100 text-red-700 flex items-center justify-center"><i data-lucide="triangle-alert" class="size-4"></i></span></div><div id="kVen" class="text-3xl font-medium">–</div><div class="text-sm text-gray-500">requieren atención</div></div>
+          <div class="bg-[#ead9b6] rounded-xl ring-1 ring-black/10 p-4"><div class="flex items-center justify-between"><span class="text-sm text-gray-500">Alquileres activos</span><span class="size-9 rounded-lg bg-[#d6c096] flex items-center justify-center"><i data-lucide="calendar-clock" class="size-4"></i></span></div><div id="kAct" class="text-3xl font-medium">–</div><div id="kActSub" class="text-sm text-gray-500"></div></div>
+          <div class="bg-[#ead9b6] rounded-xl ring-1 ring-black/10 p-4"><div class="flex items-center justify-between"><span class="text-sm text-gray-500">Equipos disponibles</span><span class="size-9 rounded-lg bg-[#d6c096] flex items-center justify-center"><i data-lucide="package-check" class="size-4"></i></span></div><div id="kEq" class="text-3xl font-medium">–</div><div class="text-sm text-gray-500">listos para alquilar</div></div>
+          <div class="bg-[#ead9b6] rounded-xl ring-1 ring-black/10 p-4"><div class="flex items-center justify-between"><span class="text-sm text-gray-500">Cobrado del mes</span><span class="size-9 rounded-lg bg-[#d6c096] flex items-center justify-center"><i data-lucide="coins" class="size-4"></i></span></div><div id="kCash" class="text-3xl font-medium">–</div><div class="text-sm text-gray-500">señas + saldos + moras</div></div>
+          <div class="bg-[#ead9b6] rounded-xl ring-1 ring-black/10 p-4"><div class="flex items-center justify-between"><span class="text-sm text-gray-500">Devoluciones vencidas</span><span class="size-9 rounded-lg bg-red-100 text-red-700 flex items-center justify-center"><i data-lucide="triangle-alert" class="size-4"></i></span></div><div id="kVen" class="text-3xl font-medium">–</div><div class="text-sm text-gray-500">requieren atención</div></div>
         </div>
         <div class="grid grid-cols-1 xl:grid-cols-3 gap-4 mt-4">
-          <div class="bg-white rounded-xl ring-1 ring-black/10 p-4 xl:col-span-2"><div class="font-medium">Ingresos por mes</div><div class="text-sm text-gray-500 mb-2">Cobros registrados últimos 6 meses</div><div class="h-64"><canvas id="chIng"></canvas></div></div>
-          <div class="bg-white rounded-xl ring-1 ring-black/10 p-4"><div class="font-medium">Disponibilidad por categoría</div><div class="text-sm text-gray-500 mb-3">Unidades libres frente al total</div><div id="catBars" class="flex flex-col gap-3"></div></div>
+          <div class="bg-[#ead9b6] rounded-xl ring-1 ring-black/10 p-4 xl:col-span-2"><div class="font-medium">Ingresos por mes</div><div class="text-sm text-gray-500 mb-2">Cobros registrados últimos 6 meses</div><div class="h-64"><canvas id="chIng"></canvas></div></div>
+          <div class="bg-[#ead9b6] rounded-xl ring-1 ring-black/10 p-4"><div class="font-medium">Disponibilidad por categoría</div><div class="text-sm text-gray-500 mb-3">Unidades libres frente al total</div><div id="catBars" class="flex flex-col gap-3"></div></div>
         </div>
         <div class="grid grid-cols-1 xl:grid-cols-3 gap-4 mt-4">
-          <div class="bg-white rounded-xl ring-1 ring-black/10 p-4 xl:col-span-2"><div class="flex items-center justify-between mb-2"><span class="font-medium">Alquileres recientes</span><button class="text-sm underline" onclick="go('alquileres')">Ver todos</button></div><div id="tRec" class="overflow-x-auto"></div></div>
-          <div class="bg-white rounded-xl ring-1 ring-black/10 p-4"><div class="font-medium mb-1">Acciones rápidas</div><div class="text-sm text-gray-500 mb-3">Tareas frecuentes del día a día</div>
+          <div class="bg-[#ead9b6] rounded-xl ring-1 ring-black/10 p-4 xl:col-span-2"><div class="flex items-center justify-between mb-2"><span class="font-medium">Alquileres recientes</span><button class="text-sm underline" onclick="go('alquileres')">Ver todos</button></div><div id="tRec" class="overflow-x-auto"></div></div>
+          <div class="bg-[#ead9b6] rounded-xl ring-1 ring-black/10 p-4"><div class="font-medium mb-1">Acciones rápidas</div><div class="text-sm text-gray-500 mb-3">Tareas frecuentes del día a día</div>
             <div class="flex flex-col gap-2">
-              <button class="border rounded-lg p-2.5 text-sm text-left hover:bg-gray-50" onclick="openReserva()">＋ Registrar alquiler</button>
-              <button class="border rounded-lg p-2.5 text-sm text-left hover:bg-gray-50" onclick="openEquipo()">＋ Añadir equipo</button>
-              <button class="border rounded-lg p-2.5 text-sm text-left hover:bg-gray-50" onclick="openCliente()">＋ Nuevo cliente</button>
-              <button class="border rounded-lg p-2.5 text-sm text-left hover:bg-gray-50" onclick="go('clientes')">$ Ver deudores</button>
+              <button class="border rounded-lg p-2.5 text-sm text-left hover:bg-[#dcc99c]" onclick="openReserva()">＋ Registrar alquiler</button>
+              <button class="border rounded-lg p-2.5 text-sm text-left hover:bg-[#dcc99c]" onclick="openEquipo()">＋ Añadir equipo</button>
+              <button class="border rounded-lg p-2.5 text-sm text-left hover:bg-[#dcc99c]" onclick="openCliente()">＋ Nuevo cliente</button>
+              <button class="border rounded-lg p-2.5 text-sm text-left hover:bg-[#dcc99c]" onclick="go('clientes')">$ Ver deudores</button>
             </div></div>
         </div>
       </section>
 
       <!-- ===== INVENTARIO ===== -->
       <section id="view-inventario" class="hidden flex-col gap-4">
-        <div class="bg-white rounded-xl ring-1 ring-black/10 p-4">
+        <div class="bg-[#ead9b6] rounded-xl ring-1 ring-black/10 p-4">
           <div class="flex flex-wrap items-center justify-between gap-2 mb-3"><div><div class="font-medium text-base">Inventario</div><div class="text-sm text-gray-500">Catálogo de equipos audiovisuales</div></div>
           <button class="bg-gray-900 text-white text-sm rounded-lg h-8 px-3" onclick="openEquipo()">Añadir equipo</button></div>
           <div class="flex flex-wrap gap-2 mb-3">
@@ -96,7 +99,7 @@ dialog::backdrop{background:rgba(0,0,0,.4)}
           </div>
           <div id="tEq" class="overflow-x-auto"></div>
         </div>
-        <div class="bg-white rounded-xl ring-1 ring-black/10 p-4">
+        <div class="bg-[#ead9b6] rounded-xl ring-1 ring-black/10 p-4">
           <div class="font-medium mb-1">Verificar disponibilidad real</div>
           <div class="text-sm text-gray-500 mb-2">R1 anti doble-reserva + R2 estado operativo. Elegí equipo y rango.</div>
           <div class="flex flex-wrap gap-2 items-center"><select id="dEq" class="border rounded-lg h-9 text-sm px-2"></select><input id="dIni" type="date" class="border rounded-lg h-9 text-sm px-2"><input id="dFin" type="date" class="border rounded-lg h-9 text-sm px-2">
@@ -106,14 +109,14 @@ dialog::backdrop{background:rgba(0,0,0,.4)}
 
       <!-- ===== ALQUILERES ===== -->
       <section id="view-alquileres" class="hidden flex-col gap-4">
-        <div class="bg-white rounded-xl ring-1 ring-black/10 p-4">
+        <div class="bg-[#ead9b6] rounded-xl ring-1 ring-black/10 p-4">
           <div class="flex flex-wrap items-center justify-between gap-2 mb-3"><div><div class="font-medium text-base">Alquileres</div><div class="text-sm text-gray-500">Reservas y contratos · retiro (check-out) y devolución (check-in)</div></div></div>
           <div class="flex gap-1.5 flex-wrap mb-3" id="tabsEst">
             <button data-e="" class="tabbtn active">Todos</button><button data-e="RESERVADO" class="tabbtn">Reservados</button><button data-e="ACTIVO" class="tabbtn">Activos</button><button data-e="VENCIDO" class="tabbtn">Vencidos</button><button data-e="DEVUELTO" class="tabbtn">Devueltos</button>
           </div>
           <div id="tAlq" class="overflow-x-auto"></div>
         </div>
-        <div class="bg-white rounded-xl ring-1 ring-black/10 p-4" id="reservaCard">
+        <div class="bg-[#ead9b6] rounded-xl ring-1 ring-black/10 p-4" id="reservaCard">
           <div class="font-medium mb-1">Nuevo alquiler / presupuesto</div>
           <div class="grid sm:grid-cols-2 lg:grid-cols-5 gap-2 mb-2">
             <label class="text-sm">Cliente<select id="rCli" class="border rounded-lg h-9 text-sm px-2 w-full mt-1"></select></label>
@@ -140,8 +143,8 @@ dialog::backdrop{background:rgba(0,0,0,.4)}
       <!-- ===== CLIENTES / COBRANZA ===== -->
       <section id="view-clientes" class="hidden flex-col gap-4">
         <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
-          <div class="bg-white rounded-xl ring-1 ring-black/10 p-4"><div class="flex items-center justify-between mb-2"><div><div class="font-medium text-base">Clientes</div><div class="text-sm text-gray-500">Directorio de productoras, agencias e independientes</div></div><button class="bg-gray-900 text-white text-sm rounded-lg h-8 px-3" onclick="openCliente()">Nuevo cliente</button></div><div id="tCli" class="overflow-x-auto"></div></div>
-          <div class="bg-white rounded-xl ring-1 ring-black/10 p-4"><div class="font-medium">Cobranza, garantías y mora</div><div class="text-sm text-gray-500 mb-2">Seña, saldo y recargo 1.5x/día por mora (R5). Saldo = presupuesto + mora − pagado.</div>
+          <div class="bg-[#ead9b6] rounded-xl ring-1 ring-black/10 p-4"><div class="flex items-center justify-between mb-2"><div><div class="font-medium text-base">Clientes</div><div class="text-sm text-gray-500">Directorio de productoras, agencias e independientes</div></div><button class="bg-gray-900 text-white text-sm rounded-lg h-8 px-3" onclick="openCliente()">Nuevo cliente</button></div><div id="tCli" class="overflow-x-auto"></div></div>
+          <div class="bg-[#ead9b6] rounded-xl ring-1 ring-black/10 p-4"><div class="font-medium">Cobranza, garantías y mora</div><div class="text-sm text-gray-500 mb-2">Seña, saldo y recargo 1.5x/día por mora (R5). Saldo = presupuesto + mora − pagado.</div>
             <div class="flex gap-2 mb-2"><input id="pAlq" placeholder="ID alquiler" class="border rounded-lg h-9 px-2"><button class="border rounded-lg h-9 px-3 text-sm" onclick="verSaldo()">Ver saldo</button></div>
             <div class="flex gap-2 mb-2"><select id="pTipo" class="border rounded-lg h-9 text-sm px-2"><option>SENA</option><option>SALDO</option><option>RECARGO_MORA</option></select><input id="pMonto" type="number" placeholder="Monto $" class="border rounded-lg h-9 px-2"><button class="bg-gray-900 text-white text-sm rounded-lg h-9 px-4" onclick="pagar()">Cobrar</button></div>
             <div id="rPago" class="text-sm"></div>

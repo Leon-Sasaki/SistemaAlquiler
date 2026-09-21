@@ -1,0 +1,13 @@
+{
+  "name": "sistema-alquiler",
+  "version": "0.1.0",
+  "description": "MVP alquiler audiovisual - UNLa PPP1",
+  "type": "commonjs",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}

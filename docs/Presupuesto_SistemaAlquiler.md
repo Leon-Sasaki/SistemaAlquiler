@@ -17,7 +17,7 @@
 - **Duración:** 3 sprints de 2 semanas + 1 semana de cierre = **7 semanas** (≈ 30 días hábiles).
 - **Precio fijo cerrado MVP 1: ARS 3.730.000** (incluye costos, herramientas y margen).
 - **Cobro por hitos:** 30% anticipo · 40% demo funcional · 30% pase a producción.
-- **Ajuste por inflación:** aplica a saldos e hitos de fases posteriores (punto 7).
+- **Ajuste por inflación:** aplica a saldos e hitos de fases posteriores.
 
 ---
 
@@ -94,7 +94,7 @@ Estimación por **horas de equipo** (no por persona): es la suma de las horas de
 | MVP 2 | Precios dinámicos por temporada · reportes PDF · notificaciones WhatsApp | 8–10 semanas adicionales |
 | MVP 3 | Usuarios con roles/perfilado · app móvil / integración contable | 8–12 semanas adicionales |
 
-*Cada MVP se cotiza por separado (con su propio costo y cláusula de inflación, punto 7).*
+*Cada MVP se cotiza por separado (con su propio costo y cláusula de inflación).*
 
 ---
 
@@ -200,4 +200,4 @@ Como el plan puede volverse un vínculo de largo plazo:
 | Firma: ______________________ | Firma: ______________________ |
 | Fecha: ______________________ | Fecha: ______________________ |
 
-*Presupuesto válido por 15 días. Sujeto a la cláusula de ajuste por inflación del punto 7.*
+*Presupuesto válido por 15 días.*

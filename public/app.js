@@ -84,23 +84,49 @@ async function load() {
   lucide.createIcons();
 }
 
+/* Búsqueda ágil: texto dedicado por sección + global del topbar, con debounce */
+function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
+function vistaActual() { return document.querySelector('.navbtn.active')?.dataset.view || 'panel'; }
+function textoEq() { const t = ($('qEq').value || '').trim().toLowerCase(); if (t) return t; return vistaActual() === 'inventario' ? ($('q').value || '').trim().toLowerCase() : ''; }
+function textoAlq() { const t = ($('qAlq').value || '').trim().toLowerCase(); if (t) return t; return vistaActual() === 'alquileres' ? ($('q').value || '').trim().toLowerCase() : ''; }
+
 function renderEq() {
-  const c = $('fCat').value, e = $('fEst').value, q = ($('q').value || '').toLowerCase();
+  const c = $('fCat').value, e = $('fEst').value, q = textoEq();
   const rows = EQ.filter(x => (!c || x.categoria === c) && (!e || x.estado_operativo === e) &&
-    (!q || (x.nombre + ' ' + x.codigo).toLowerCase().includes(q) || document.querySelector('[data-view].active')?.dataset.view !== 'inventario'));
+    (!q || (x.nombre + ' ' + x.codigo + ' ' + (x.categoria || '')).toLowerCase().includes(q)));
+  $('nEq').textContent = rows.length + ' de ' + EQ.length;
   $('tEq').innerHTML = `<table class="w-full text-sm"><tr class="text-gray-500"><th class="text-left py-1">Equipo</th><th class="text-left">Categoría</th><th class="text-left">Nº de serie</th><th class="text-left">Estado</th><th class="text-right">Tarifa / día</th><th></th></tr>` +
     rows.map(x => `<tr class="border-t"><td class="py-2"><b>${x.nombre}</b><br><span class="text-xs text-gray-500">${x.codigo}</span></td><td>${x.categoria || ''}</td><td class="text-xs">${x.codigo}</td><td>${pill(x.estado_operativo)}</td><td class="text-right">${money(x.precio_dia)}</td>
-    <td class="text-right"><button class="text-xs underline" onclick="bloquear(${x.id},'${x.estado_operativo}')">${x.estado_operativo === 'DISPONIBLE' ? 'A mantenimiento' : 'Liberar'}</button></td></tr>`).join('') + '</table>';
+    <td class="text-right whitespace-nowrap"><button class="text-xs underline mr-2" onclick="consultar(${x.id})">Consultar</button><button class="text-xs underline" onclick="bloquear(${x.id},'${x.estado_operativo}')">${x.estado_operativo === 'DISPONIBLE' ? 'A mantenimiento' : 'Liberar'}</button></td></tr>`).join('') + '</table>';
 }
 $('fCat').onchange = renderEq; $('fEst').onchange = renderEq;
+$('qEq').oninput = debounce(renderEq, 150);
 
 function renderAlq() {
-  const q = ($('q').value || '').toLowerCase();
-  const rows = ALQ.filter(a => (!FILTRO || a.estado === FILTRO) && (!q || (a.cliente + ' ALQ-' + a.id).toLowerCase().includes(q)));
-  $('tAlq').innerHTML = `<table class="w-full text-sm"><tr class="text-gray-500"><th class="text-left py-1">Referencia</th><th class="text-left">Cliente</th><th class="text-left">Equipos</th><th class="text-left">Período</th><th class="text-left">Estado</th><th class="text-right">Total</th></tr>` +
-    rows.map(a => `<tr class="border-t"><td class="py-2">ALQ-${a.id}</td><td>${a.cliente}</td><td class="text-xs">${a.equipos.map(x => x.nombre).join(', ')}</td><td class="text-xs">${a.fecha_retiro_prevista} — ${a.fecha_devolucion_prevista}</td><td>${pill(a.estado)}</td><td class="text-right">${money(a.total_presupuesto + (a.total_mora || 0))}</td></tr>`).join('') + '</table>';
+  const q = textoAlq();
+  const rows = ALQ.filter(a => (!FILTRO || a.estado === FILTRO) &&
+    (!q || ('ALQ-' + a.id + ' ' + a.cliente + ' ' + a.equipos.map(x => x.nombre).join(' ') + ' ' + a.estado).toLowerCase().includes(q)));
+  $('nAlq').textContent = rows.length + ' de ' + ALQ.length;
+  $('tAlq').innerHTML = `<table class="w-full text-sm"><tr class="text-gray-500"><th class="text-left py-1">Referencia</th><th class="text-left">Cliente</th><th class="text-left">Equipos</th><th class="text-left">Período</th><th class="text-left">Estado</th><th class="text-right">Total</th><th></th></tr>` +
+    rows.map(a => `<tr class="border-t"><td class="py-2">ALQ-${a.id}</td><td>${a.cliente}</td><td class="text-xs">${a.equipos.map(x => x.nombre).join(', ')}</td><td class="text-xs">${a.fecha_retiro_prevista} — ${a.fecha_devolucion_prevista}</td><td>${pill(a.estado)}</td><td class="text-right">${money(a.total_presupuesto + (a.total_mora || 0))}</td>
+    <td class="text-right"><button class="text-xs underline" onclick="verAlq(${a.id})">Operar</button></td></tr>`).join('') + '</table>';
 }
-$('q').oninput = () => { renderEq(); renderAlq(); };
+$('q').oninput = debounce(() => { renderEq(); renderAlq(); }, 150);
+$('qAlq').oninput = debounce(renderAlq, 150);
+
+/* Atajos: desde la fila directo a la acción */
+function consultar(equipoId) {
+  go('inventario');
+  $('dEq').value = equipoId;
+  if (!$('dIni').value) $('dIni').value = new Date().toISOString().slice(0, 10);
+  if (!$('dFin').value) $('dFin').value = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10);
+  verDisp();
+  $('dEq').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+function verAlq(id) {
+  $('mAlq').value = id;
+  $('reservaCard').scrollIntoView({ behavior: 'smooth' });
+}
 
 /* Operaciones (enunciado) */
 async function verDisp() {

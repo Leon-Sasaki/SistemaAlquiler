@@ -93,8 +93,10 @@ input::placeholder{color:#8a774f}
           <div class="flex flex-wrap items-center justify-between gap-2 mb-3"><div><div class="font-medium text-base">Inventario</div><div class="text-sm text-gray-500">Catálogo de equipos audiovisuales</div></div>
           <button class="bg-gray-900 text-white text-sm rounded-lg h-8 px-3" onclick="openEquipo()">Añadir equipo</button></div>
           <div class="flex flex-wrap gap-2 mb-3">
+            <input id="qEq" placeholder="Buscar equipo, código o categoría..." class="border rounded-lg h-8 text-sm px-2 w-64">
             <select id="fCat" class="border rounded-lg h-8 text-sm px-2"><option value="">Todas</option></select>
             <select id="fEst" class="border rounded-lg h-8 text-sm px-2"><option value="">Todos los estados</option><option>DISPONIBLE</option><option>ALQUILADO</option><option>MANTENIMIENTO</option><option>DANADO</option><option>BAJA</option></select>
+            <span id="nEq" class="text-xs text-gray-500 self-center"></span>
             <span class="text-xs text-gray-500 self-center">Tip Excel superado: el estado ya no es texto libre (“le falta la perilla”), es un valor cerrado + revisión en devolución.</span>
           </div>
           <div id="tEq" class="overflow-x-auto"></div>
@@ -111,8 +113,12 @@ input::placeholder{color:#8a774f}
       <section id="view-alquileres" class="hidden flex-col gap-4">
         <div class="bg-[#ead9b6] rounded-xl ring-1 ring-black/10 p-4">
           <div class="flex flex-wrap items-center justify-between gap-2 mb-3"><div><div class="font-medium text-base">Alquileres</div><div class="text-sm text-gray-500">Reservas y contratos · retiro (check-out) y devolución (check-in)</div></div></div>
-          <div class="flex gap-1.5 flex-wrap mb-3" id="tabsEst">
+          <div class="flex gap-1.5 flex-wrap mb-2" id="tabsEst">
             <button data-e="" class="tabbtn active">Todos</button><button data-e="RESERVADO" class="tabbtn">Reservados</button><button data-e="ACTIVO" class="tabbtn">Activos</button><button data-e="VENCIDO" class="tabbtn">Vencidos</button><button data-e="DEVUELTO" class="tabbtn">Devueltos</button>
+          </div>
+          <div class="flex gap-2 items-center mb-3">
+            <input id="qAlq" placeholder="Buscar ref, cliente, equipo o estado..." class="border rounded-lg h-8 text-sm px-2 w-64">
+            <span id="nAlq" class="text-xs text-gray-500"></span>
           </div>
           <div id="tAlq" class="overflow-x-auto"></div>
         </div>

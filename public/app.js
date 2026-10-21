@@ -5,6 +5,7 @@ const money = n => '$' + Number(n || 0).toLocaleString('es-AR');
 const pill = s => `<span class="pill p-${s}">${s}</span>`;
 let EQ = [], ALQ = [], CLI = [], KITS = [], FILTRO = '';
 let KITS_SEL = [];
+let EQ_SEL = [];
 let chart = null;
 
 /* Navegación */
@@ -52,6 +53,7 @@ async function load() {
   $('kEq').textContent = res.disponibles + ' / ' + res.totalEquipos;
   $('kCash').textContent = money(res.cobradoMes);
   $('kVen').textContent = venc.length;
+  $('kKit').textContent = kits.filter(k => k.completo).length + ' / ' + kits.length;
 
   // Chart ingresos
   if (chart) chart.destroy();
@@ -77,6 +79,8 @@ async function load() {
   $('rKit').innerHTML = kits.map(k => `<option value="${k.id}">${k.codigo} · ${k.nombre} (${money(k.precio_calculado)}/día)</option>`).join('');
   renderEq();
   renderKits();
+  renderEqList();
+  renderEqSel();
   renderLineas();
 
   // Alquileres + clientes
@@ -100,8 +104,8 @@ function renderEq() {
   const rows = EQ.filter(x => (!c || x.categoria === c) && (!e || x.estado_operativo === e) &&
     (!q || (x.nombre + ' ' + x.codigo + ' ' + (x.categoria || '')).toLowerCase().includes(q)));
   $('nEq').textContent = rows.length + ' de ' + EQ.length;
-  $('tEq').innerHTML = `<table class="w-full text-sm"><tr class="text-gray-500"><th class="text-left py-1">Equipo</th><th class="text-left">Categoría</th><th class="text-left">Nº de serie</th><th class="text-left">Estado</th><th class="text-right">Tarifa / día</th><th></th></tr>` +
-    rows.map(x => `<tr class="border-t"><td class="py-2"><b>${x.nombre}</b><br><span class="text-xs text-gray-500">${x.codigo}</span></td><td>${x.categoria || ''}</td><td class="text-xs">${x.codigo}</td><td>${pill(x.estado_operativo)}</td><td class="text-right">${money(x.precio_dia)}</td>
+  $('tEq').innerHTML = `<table class="w-full text-sm"><tr class="text-gray-500"><th class="text-left py-1">Equipo</th><th class="text-left">Modelo</th><th class="text-left">Categoría</th><th class="text-left">Estado</th><th class="text-right">Tarifa / día</th><th></th></tr>` +
+    rows.map(x => `<tr class="border-t"><td class="py-2"><b>${x.nombre}</b><br><span class="text-xs text-gray-500">${x.codigo}</span></td><td class="text-xs">${x.modelo || '—'}</td><td>${x.categoria || ''}</td><td>${pill(x.estado_operativo)}</td><td class="text-right">${money(x.precio_dia)}</td>
     <td class="text-right whitespace-nowrap"><button class="text-xs underline mr-2" onclick="consultar(${x.id})">Consultar</button><button class="text-xs underline" onclick="bloquear(${x.id},'${x.estado_operativo}')">${x.estado_operativo === 'DISPONIBLE' ? 'A mantenimiento' : 'Liberar'}</button></td></tr>`).join('') + '</table>';
 }
 $('fCat').onchange = renderEq; $('fEst').onchange = renderEq;
@@ -159,25 +163,73 @@ async function conflictosKit(id) {
   alert('Kit BLOQUEADO\n\n' + msg);
 }
 
-/* Lineas de la reserva (equipos sueltos + kits) */
+/* ---------- Lineas de la reserva (equipos sueltos + kits) ---------- */
+function renderEqList() {
+  const q = ($('rEqSearch').value || '').trim().toLowerCase();
+  const rows = EQ.filter(e => !q || (e.nombre + ' ' + e.codigo + ' ' + (e.categoria || '')).toLowerCase().includes(q));
+  $('rEqList').innerHTML = rows.length ? rows.map(e => {
+    const sel = EQ_SEL.includes(e.id);
+    const noDisp = e.estado_operativo !== 'DISPONIBLE';
+    return `<button class="w-full text-left px-2 py-1.5 flex items-center gap-2 hover:bg-[#dcc99c] ${sel ? 'bg-[#e0cfa8]' : ''}" onclick="toggleEq(${e.id})">
+      <span class="w-3 h-3 rounded border flex items-center justify-center">${sel ? '✓' : ''}</span>
+      <span class="flex-1 truncate">${e.nombre} <span class="text-xs text-gray-500">${e.codigo}</span></span>
+      <span class="text-xs">${money(e.precio_dia)}/d</span>
+      ${noDisp ? '<span class="pill p-' + e.estado_operativo + '">' + e.estado_operativo + '</span>' : ''}
+    </button>`;
+  }).join('') : '<div class="p-2 text-xs text-gray-500">Sin resultados</div>';
+}
+function toggleEq(id) {
+  const i = EQ_SEL.indexOf(id);
+  if (i >= 0) EQ_SEL.splice(i, 1); else EQ_SEL.push(id);
+  renderEqList(); renderEqSel(); estimar();
+}function renderEqSel() {
+  $('rEqSel').innerHTML = EQ_SEL.map(id => {
+    const e = EQ.find(x => x.id === id);
+    if (!e) return '';
+    return `<span class="inline-flex items-center gap-1 bg-[#e0cfa8] rounded-lg px-2 py-0.5 text-xs">${e.nombre}
+      <button class="underline" onclick="toggleEq(${id})">x</button></span>`;
+  }).join('');
+}
+$('rEqSearch').oninput = renderEqList;
+
 function agregarKit() {
   const id = +$('rKit').value, cant = Math.max(1, +$('rKitCant').value || 1);
   if (!id) return;
   KITS_SEL.push({ kit_id: id, cantidad: cant });
   renderLineas();
+  estimar();
 }
-function quitarKit(i) { KITS_SEL.splice(i, 1); renderLineas(); }
+function quitarKit(i) { KITS_SEL.splice(i, 1); renderLineas(); estimar(); }
 function renderLineas() {
   const box = $('rLineas');
-  if (!KITS_SEL.length) { box.innerHTML = '<span class="text-xs text-gray-500">Sin kits agregados. Un kit se reserva entero: si un componente choca, se bloquea todo.</span>'; return; }
+  if (!KITS_SEL.length) { box.innerHTML = '<span class="text-xs text-gray-600">Sin kits agregados. Un kit se reserva entero: si un componente choca, se bloquea todo.</span>'; return; }
   box.innerHTML = KITS_SEL.map((k, i) => {
     const kit = KITS.find(x => x.id === k.kit_id);
     const comp = kit ? kit.desglose.map(d => `${d.cantidad}x ${d.equipo}`).join(', ') : '';
-    return `<div class="flex items-center gap-2 bg-[#e0cfa8] rounded-lg px-2 py-1">
+    return `<div class="flex items-center gap-2 bg-[#ead9b6] rounded-lg px-2 py-1">
       <b>${kit ? kit.nombre : 'Kit'}</b> x${k.cantidad}
       <span class="text-xs text-gray-600">${comp}</span>
       <button class="ml-auto text-xs underline" onclick="quitarKit(${i})">quitar</button></div>`;
   }).join('');
+}
+// Desglose del kit seleccionado (para que el mostrador vea que lleva antes de agregar)
+$('rKit').onchange = () => {
+  const kit = KITS.find(x => x.id === +$('rKit').value);
+  $('rKitDesglose').innerHTML = kit
+    ? 'Incluye: ' + kit.desglose.map(d => `${d.cantidad}x ${d.equipo} <span class="text-gray-500">(${d.unidades_libres}/${d.unidades_totales} libres)</span>`).join(' · ')
+      + ` · ${money(kit.precio_calculado)}/día`
+    : '';
+  estimar();
+};
+// Estimacion de precio
+function estimar() {
+  const dias = ($('rIni').value && $('rFin').value) ? Math.max(1, Math.round((new Date($('rFin').value) - new Date($('rIni').value)) / 86400000) + 1) : 0;
+  let total = EQ_SEL.reduce((s, id) => { const e = EQ.find(x => x.id === id); return s + (e ? Number(e.precio_dia) : 0); }, 0);
+  for (const k of KITS_SEL) {
+    const kit = KITS.find(x => x.id === k.kit_id);
+    if (kit) total += Number(kit.precio_calculado) * k.cantidad;
+  }
+  $('rTot').textContent = (dias && total) ? `Estimado: ${dias} días · ${money(total * dias)}` : '';
 }
 function consultar(equipoId) {
   go('inventario');
@@ -198,13 +250,14 @@ async function verDisp() {
   $('dRes').innerHTML = r.libre ? pill('DISPONIBLE') + ' Libre' : pill('VENCIDO') + ' ' + (r.motivo || '');
 }
 async function reservar() {
-  const eqs = [...$('rEqs').selectedOptions].map(o => +o.value);
   const r = await j('/api/alquileres', { method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ cliente_id: +$('rCli').value, inicio: $('rIni').value, fin: $('rFin').value,
-      equipo_ids: eqs, kits: KITS_SEL, garantia: { tipo: $('rGar').value, detalle: 'mostrador', monto: 0 } }) });
+      equipo_ids: EQ_SEL, kits: KITS_SEL, garantia: { tipo: $('rGar').value, detalle: 'mostrador', monto: 0 } }) });
   if (r.ok) {
     $('rRes').textContent = `OK ALQ-${r.alquiler_id} · ${r.dias} días · ${r.equipos} equipos · total ${money(r.total)}`;
-    KITS_SEL = []; renderLineas(); load();
+    KITS_SEL = []; EQ_SEL = [];
+    renderLineas(); renderEqSel(); renderEqList();
+    load();
   } else {
     $('rRes').textContent = 'Error: ' + (r.error || '?');
     if (r.conflictos && r.conflictos.length) {
@@ -262,15 +315,7 @@ async function pagar() {
 }
 
 /* Estimar total al elegir equipos/fechas */
-$('rEqs').onchange = $('rIni').onchange = $('rFin').onchange = $('rKit').onchange = $('rKitCant').onchange = () => {
-  const dias = ($('rIni').value && $('rFin').value) ? Math.max(1, Math.round((new Date($('rFin').value) - new Date($('rIni').value)) / 86400000) + 1) : 0;
-  const eqs = [...$('rEqs').selectedOptions].map(o => EQ.find(e => e.id === +o.value)).filter(Boolean);
-  let total = eqs.reduce((s, e) => s + Number(e.precio_dia), 0);
-  for (const k of KITS_SEL) {
-    const kit = KITS.find(x => x.id === k.kit_id);
-    if (kit) total += Number(kit.precio_calculado) * k.cantidad;
-  }
-  $('rTot').textContent = (dias && total) ? `Estimado: ${dias} días · ${money(total * dias)}` : '';
-};
+$('rIni').onchange = $('rFin').onchange = () => estimar();
+$('rEqSearch').oninput = renderEqList;
 
 load();

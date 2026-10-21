@@ -66,10 +66,11 @@ input::placeholder{color:#8a774f}
 
       <!-- ===== PANEL ===== -->
       <section id="view-panel">
-        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
           <div class="bg-[#ead9b6] rounded-xl ring-1 ring-black/10 p-4"><div class="flex items-center justify-between"><span class="text-sm text-gray-500">Alquileres activos</span><span class="size-9 rounded-lg bg-[#d6c096] flex items-center justify-center"><i data-lucide="calendar-clock" class="size-4"></i></span></div><div id="kAct" class="text-3xl font-medium">–</div><div id="kActSub" class="text-sm text-gray-500"></div></div>
           <div class="bg-[#ead9b6] rounded-xl ring-1 ring-black/10 p-4"><div class="flex items-center justify-between"><span class="text-sm text-gray-500">Equipos disponibles</span><span class="size-9 rounded-lg bg-[#d6c096] flex items-center justify-center"><i data-lucide="package-check" class="size-4"></i></span></div><div id="kEq" class="text-3xl font-medium">–</div><div class="text-sm text-gray-500">listos para alquilar</div></div>
           <div class="bg-[#ead9b6] rounded-xl ring-1 ring-black/10 p-4"><div class="flex items-center justify-between"><span class="text-sm text-gray-500">Cobrado del mes</span><span class="size-9 rounded-lg bg-[#d6c096] flex items-center justify-center"><i data-lucide="coins" class="size-4"></i></span></div><div id="kCash" class="text-3xl font-medium">–</div><div class="text-sm text-gray-500">señas + saldos + moras</div></div>
+          <div class="bg-[#ead9b6] rounded-xl ring-1 ring-black/10 p-4"><div class="flex items-center justify-between"><span class="text-sm text-gray-500">Kits disponibles</span><span class="size-9 rounded-lg bg-[#d6c096] flex items-center justify-center"><i data-lucide="boxes" class="size-4"></i></span></div><div id="kKit" class="text-3xl font-medium">–</div><div class="text-sm text-gray-500">listos para alquilar</div></div>
           <div class="bg-[#ead9b6] rounded-xl ring-1 ring-black/10 p-4"><div class="flex items-center justify-between"><span class="text-sm text-gray-500">Devoluciones vencidas</span><span class="size-9 rounded-lg bg-red-100 text-red-700 flex items-center justify-center"><i data-lucide="triangle-alert" class="size-4"></i></span></div><div id="kVen" class="text-3xl font-medium">–</div><div class="text-sm text-gray-500">requieren atención</div></div>
         </div>
         <div class="grid grid-cols-1 xl:grid-cols-3 gap-4 mt-4">
@@ -91,10 +92,13 @@ input::placeholder{color:#8a774f}
       <!-- ===== INVENTARIO ===== -->
       <section id="view-inventario" class="hidden flex-col gap-4">
         <div class="bg-[#ead9b6] rounded-xl ring-1 ring-black/10 p-4">
-          <div class="flex flex-wrap items-center justify-between gap-2 mb-3"><div><div class="font-medium text-base">Inventario</div><div class="text-sm text-gray-500">Catálogo de equipos audiovisuales</div></div>
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-3"><div><div class="font-medium text-base">Inventario</div><div class="text-sm text-gray-500">Catálogo de equipos · base física de los kits (se agrupan por <b>modelo</b>)</div></div>
           <button class="bg-gray-900 text-white text-sm rounded-lg h-8 px-3" onclick="openEquipo()">Añadir equipo</button></div>
           <div class="flex flex-wrap gap-2 mb-3">
-            <input id="qEq" placeholder="Buscar equipo, código o categoría..." class="border rounded-lg h-8 text-sm px-2 w-64">
+            <div class="relative">
+              <i data-lucide="search" class="size-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500"></i>
+              <input id="qEq" placeholder="Buscar equipo, código o categoría..." class="border rounded-lg h-8 text-sm pl-8 w-64">
+            </div>
             <select id="fCat" class="border rounded-lg h-8 text-sm px-2"><option value="">Todas</option></select>
             <select id="fEst" class="border rounded-lg h-8 text-sm px-2"><option value="">Todos los estados</option><option>DISPONIBLE</option><option>ALQUILADO</option><option>MANTENIMIENTO</option><option>DANADO</option><option>BAJA</option></select>
             <span id="nEq" class="text-xs text-gray-500 self-center"></span>
@@ -141,23 +145,39 @@ input::placeholder{color:#8a774f}
         </div>
         <div class="bg-[#ead9b6] rounded-xl ring-1 ring-black/10 p-4" id="reservaCard">
           <div class="font-medium mb-1">Nuevo alquiler / presupuesto</div>
-          <div class="grid sm:grid-cols-2 lg:grid-cols-5 gap-2 mb-2">
+          <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-2 mb-2">
             <label class="text-sm">Cliente<select id="rCli" class="border rounded-lg h-9 text-sm px-2 w-full mt-1"></select></label>
             <label class="text-sm">Retiro<input id="rIni" type="date" class="border rounded-lg h-9 text-sm px-2 w-full mt-1"></label>
             <label class="text-sm">Devolución<input id="rFin" type="date" class="border rounded-lg h-9 text-sm px-2 w-full mt-1"></label>
             <label class="text-sm">Garantía<select id="rGar" class="border rounded-lg h-9 text-sm px-2 w-full mt-1"><option>DNI_RETENIDO</option><option>PAGARE</option><option>DEPOSITO</option><option>OTRO</option></select></label>
-            <label class="text-sm">Equipos<select id="rEqs" multiple size="5" class="border rounded-lg text-sm px-2 w-full mt-1"></select></label>
           </div>
-          <div class="flex items-center gap-2"><button class="bg-gray-900 text-white text-sm rounded-lg h-9 px-4" onclick="reservar()">Reservar</button><span id="rRes" class="text-sm"></span><span id="rTot" class="text-sm font-semibold ml-auto"></span></div>
-          <div class="mt-3 border-t pt-3">
-            <div class="font-medium mb-1">Kits del pedido</div>
-            <div class="flex flex-wrap gap-2 items-end">
-              <select id="rKit" class="border rounded-lg h-9 text-sm px-2"></select>
-              <input id="rKitCant" type="number" min="1" value="1" class="border rounded-lg h-9 px-2 w-20">
-              <button class="border rounded-lg h-9 px-3 text-sm" onclick="agregarKit()">+ Agregar kit</button>
+
+          <!-- FLUJO PRINCIPAL: KITS -->
+          <div class="border rounded-lg p-3 mb-2" style="background:#e0cfa8">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div class="font-medium">1. Kit a alquilar <span class="text-xs font-normal text-gray-600">(comercialización por kit: todo o nada)</span></div>
+              <div class="flex gap-2 items-center">
+                <select id="rKit" class="border rounded-lg h-9 text-sm px-2"></select>
+                <input id="rKitCant" type="number" min="1" value="1" class="border rounded-lg h-9 px-2 w-16">
+                <button class="bg-gray-900 text-white rounded-lg h-9 px-3 text-sm" onclick="agregarKit()">+ Agregar</button>
+              </div>
             </div>
+            <div id="rKitDesglose" class="text-xs text-gray-600 mt-1"></div>
             <div id="rLineas" class="mt-2 flex flex-col gap-1 text-sm"></div>
           </div>
+
+          <!-- EXCEPCION: EQUIPOS SUELTOS -->
+          <details class="border rounded-lg p-3 mb-2">
+            <summary class="text-sm cursor-pointer font-medium">2. Equipos sueltos <span class="text-xs font-normal text-gray-600">(excepción — la venta normal es por kit)</span></summary>
+            <div class="relative mt-2">
+              <i data-lucide="search" class="size-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500"></i>
+              <input id="rEqSearch" placeholder="Buscar por nombre, código o categoría..." class="border rounded-lg h-9 text-sm pl-8 w-full">
+            </div>
+            <div id="rEqList" class="border rounded-lg mt-1 max-h-44 overflow-y-auto text-sm"></div>
+            <div id="rEqSel" class="mt-2 flex flex-wrap gap-1"></div>
+          </details>
+
+          <div class="flex items-center gap-2"><button class="bg-gray-900 text-white text-sm rounded-lg h-9 px-4" onclick="reservar()">Reservar</button><span id="rRes" class="text-sm"></span><span id="rTot" class="text-sm font-semibold ml-auto"></span></div>
           <hr class="my-3">
           <div class="font-medium mb-2">Retiro · Devolución · Prórroga</div>
           <div class="flex flex-wrap gap-2 items-center text-sm">

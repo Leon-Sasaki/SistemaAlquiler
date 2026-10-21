@@ -9,12 +9,15 @@ CREATE TABLE IF NOT EXISTS categorias (
 CREATE TABLE IF NOT EXISTS equipos (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   codigo TEXT NOT NULL UNIQUE,
+  modelo TEXT,                                  -- agrupa unidades del mismo producto (para kits)
   categoria_id INTEGER REFERENCES categorias(id),
   nombre TEXT NOT NULL,
   valor_reposicion REAL DEFAULT 0,
   precio_dia REAL DEFAULT 0,
   estado_operativo TEXT NOT NULL DEFAULT 'DISPONIBLE'
-    CHECK (estado_operativo IN ('DISPONIBLE','ALQUILADO','MANTENIMIENTO','DANADO','BAJA'))
+    CHECK (estado_operativo IN ('DISPONIBLE','ALQUILADO','MANTENIMIENTO','DANADO','BAJA')),
+  tipo_mantenimiento TEXT DEFAULT 'CORRECTIVO'  -- PREVENTIVO | CORRECTIVO
+    CHECK (tipo_mantenimiento IN ('PREVENTIVO','CORRECTIVO'))
 );
 
 CREATE TABLE IF NOT EXISTS clientes (
@@ -41,8 +44,28 @@ CREATE TABLE IF NOT EXISTS detalle_alquiler (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   alquiler_id INTEGER NOT NULL REFERENCES alquileres(id) ON DELETE CASCADE,
   equipo_id INTEGER NOT NULL REFERENCES equipos(id),
+  kit_id INTEGER REFERENCES kits(id),            -- NULL = equipo suelto
+  cantidad INTEGER NOT NULL DEFAULT 1,
   precio_dia REAL NOT NULL,
   subtotal REAL NOT NULL
+);
+
+-- Kit promocional: agrupacion predefinida de productos (modelo + cantidad)
+CREATE TABLE IF NOT EXISTS kits (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  codigo TEXT NOT NULL UNIQUE,
+  nombre TEXT NOT NULL,
+  descripcion TEXT DEFAULT '',
+  precio_dia REAL,        -- precio propio del kit (NULL = suma de los componentes)
+  activo INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS kit_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  kit_id INTEGER NOT NULL REFERENCES kits(id) ON DELETE CASCADE,
+  modelo TEXT NOT NULL,
+  cantidad INTEGER NOT NULL DEFAULT 1,
+  UNIQUE (kit_id, modelo)
 );
 
 CREATE TABLE IF NOT EXISTS pagos (

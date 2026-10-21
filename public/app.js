@@ -3,23 +3,25 @@ const j = async (u, o) => (await fetch(u, o)).json();
 const $ = id => document.getElementById(id);
 const money = n => '$' + Number(n || 0).toLocaleString('es-AR');
 const pill = s => `<span class="pill p-${s}">${s}</span>`;
-let EQ = [], ALQ = [], CLI = [], FILTRO = '';
+let EQ = [], ALQ = [], CLI = [], KITS = [], FILTRO = '';
+let KITS_SEL = [];
 let chart = null;
 
 /* Navegación */
 function go(v) {
   document.querySelectorAll('.navbtn').forEach(b => b.classList.toggle('active', b.dataset.view === v));
-  ['panel', 'inventario', 'alquileres', 'clientes'].forEach(x => {
+  ['panel', 'inventario', 'kits', 'alquileres', 'clientes'].forEach(x => {
     const el = $('view-' + x);
     el.classList.add('hidden'); el.classList.remove('flex');
   });
   const cur = $('view-' + v);
   cur.classList.remove('hidden');
   if (v !== 'panel') cur.classList.add('flex');
-  $('viewTitle').textContent = { panel: 'Panel', inventario: 'Inventario', alquileres: 'Alquileres', clientes: 'Clientes' }[v];
+  $('viewTitle').textContent = { panel: 'Panel', inventario: 'Inventario', kits: 'Kits', alquileres: 'Alquileres', clientes: 'Clientes' }[v];
   $('viewSub').textContent = {
     panel: 'Resumen de la operación de alquileres',
     inventario: 'Catálogo de equipos audiovisuales',
+    kits: 'Kits promocionales y disponibilidad en cadena',
     alquileres: 'Reservas y contratos de alquiler',
     clientes: 'Directorio de clientes y cobranzas'
   }[v];
@@ -38,11 +40,11 @@ function openEquipo() { $('dlgEq').showModal(); }
 
 /* Carga general */
 async function load() {
-  const [eq, alq, cli, res, venc, deud, cats] = await Promise.all([
+  const [eq, alq, cli, res, venc, deud, cats, kits] = await Promise.all([
     j('/api/equipos'), j('/api/alquileres'), j('/api/clientes'), j('/api/resumen'),
-    j('/api/vencimientos'), j('/api/deudores'), j('/api/categorias')
+    j('/api/vencimientos'), j('/api/deudores'), j('/api/categorias'), j('/api/kits')
   ]);
-  EQ = eq; ALQ = alq; CLI = cli;
+  EQ = eq; ALQ = alq; CLI = cli; KITS = kits;
 
   // KPIs
   $('kAct').textContent = res.activos;
@@ -72,7 +74,10 @@ async function load() {
   $('eCat').innerHTML = cats.map(c => `<option value="${c.id}">${c.nombre}</option>`).join('');
   $('dEq').innerHTML = eq.map(e => `<option value="${e.id}">${e.codigo} · ${e.nombre}</option>`).join('');
   $('rEqs').innerHTML = eq.map(e => `<option value="${e.id}">${e.codigo} · ${e.nombre} (${money(e.precio_dia)}/día) [${e.estado_operativo}]</option>`).join('');
+  $('rKit').innerHTML = kits.map(k => `<option value="${k.id}">${k.codigo} · ${k.nombre} (${money(k.precio_calculado)}/día)</option>`).join('');
   renderEq();
+  renderKits();
+  renderLineas();
 
   // Alquileres + clientes
   renderAlq();
@@ -105,16 +110,75 @@ $('qEq').oninput = debounce(renderEq, 150);
 function renderAlq() {
   const q = textoAlq();
   const rows = ALQ.filter(a => (!FILTRO || a.estado === FILTRO) &&
-    (!q || ('ALQ-' + a.id + ' ' + a.cliente + ' ' + a.equipos.map(x => x.nombre).join(' ') + ' ' + a.estado).toLowerCase().includes(q)));
+    (!q || ('ALQ-' + a.id + ' ' + a.cliente + ' ' + a.equipos.map(x => x.nombre + ' ' + (x.kit || '')).join(' ') + ' ' + a.estado).toLowerCase().includes(q)));
   $('nAlq').textContent = rows.length + ' de ' + ALQ.length;
   $('tAlq').innerHTML = `<table class="w-full text-sm"><tr class="text-gray-500"><th class="text-left py-1">Referencia</th><th class="text-left">Cliente</th><th class="text-left">Equipos</th><th class="text-left">Período</th><th class="text-left">Estado</th><th class="text-right">Total</th><th></th></tr>` +
-    rows.map(a => `<tr class="border-t"><td class="py-2">ALQ-${a.id}</td><td>${a.cliente}</td><td class="text-xs">${a.equipos.map(x => x.nombre).join(', ')}</td><td class="text-xs">${a.fecha_retiro_prevista} — ${a.fecha_devolucion_prevista}</td><td>${pill(a.estado)}</td><td class="text-right">${money(a.total_presupuesto + (a.total_mora || 0))}</td>
-    <td class="text-right"><button class="text-xs underline" onclick="verAlq(${a.id})">Operar</button></td></tr>`).join('') + '</table>';
+    rows.map(a => {
+      // agrupar por kit para mostrar "Kit X (n equipos)"
+      const grupos = new Map();
+      for (const e of a.equipos) {
+        const k = e.kit || 'Sueltos';
+        if (!grupos.has(k)) grupos.set(k, []);
+        grupos.get(k).push(e.nombre);
+      }
+      const eqTxt = [...grupos.entries()].map(([k, v]) => v.length > 1 ? `<b>${k}</b> (${v.length} eq.)` : v[0]).join(' · ');
+      return `<tr class="border-t"><td class="py-2">ALQ-${a.id}</td><td>${a.cliente}</td><td class="text-xs">${eqTxt}</td><td class="text-xs">${a.fecha_retiro_prevista} — ${a.fecha_devolucion_prevista}</td><td>${pill(a.estado)}</td><td class="text-right">${money(a.total_presupuesto + (a.total_mora || 0))}</td>
+    <td class="text-right"><button class="text-xs underline" onclick="verAlq(${a.id})">Operar</button></td></tr>`;
+    }).join('') + '</table>';
 }
 $('q').oninput = debounce(() => { renderEq(); renderAlq(); }, 150);
 $('qAlq').oninput = debounce(renderAlq, 150);
 
-/* Atajos: desde la fila directo a la acción */
+/* ---------- KITS ---------- */
+function renderKits() {
+  const ini = $('kIni').value, fin = $('kFin').value;
+  const usarFechas = ini && fin;
+  $('tKits').innerHTML = `<table class="w-full text-sm"><tr class="text-gray-500"><th class="text-left py-1">Kit</th><th class="text-left">Componentes</th><th class="text-right">Precio / dia</th><th class="text-left">Estado</th><th></th></tr>` +
+    KITS.map(k => {
+      const desglose = k.desglose.map(d => `${d.cantidad}x ${d.equipo} <span class="text-gray-500">(${d.unidades_libres}/${d.unidades_totales} libres)</span>`).join('<br>');
+      const estado = usarFechas
+        ? (k.completo ? pill('DISPONIBLE') : pill('VENCIDO') + ' bloqueado')
+        : '<span class="text-gray-500">sin rango</span>';
+      return `<tr class="border-t"><td class="py-2"><b>${k.nombre}</b><br><span class="text-xs text-gray-500">${k.codigo}</span></td>
+        <td class="text-xs">${desglose}</td><td class="text-right">${money(k.precio_calculado)}</td><td>${estado}</td>
+        <td class="text-right"><button class="text-xs underline" onclick="conflictosKit(${k.id})">Conflictos</button></td></tr>`;
+    }).join('') + '</table>';
+}
+async function verKits() {
+  const ini = $('kIni').value, fin = $('kFin').value;
+  if (!ini || !fin) { alert('Elegi el rango de fechas para consultar la disponibilidad de los kits'); return; }
+  KITS = await j(`/api/kits?inicio=${ini}&fin=${fin}`);
+  renderKits();
+}
+async function conflictosKit(id) {
+  const ini = $('kIni').value, fin = $('kFin').value;
+  if (!ini || !fin) { alert('Elegi el rango de fechas para ver los conflictos'); return; }
+  const d = await j(`/api/kits/${id}/disponibilidad?inicio=${ini}&fin=${fin}`);
+  if (d.libre) { alert(`Kit disponible del ${ini} al ${fin}`); return; }
+  const msg = d.conflictos.map(c => `• ${c.equipo} (${c.codigo})\n  motivo: ${c.motivo}${c.rango ? '\n  rango: ' + c.rango : ''}${c.cliente ? '\n  cliente: ' + c.cliente : ''}`).join('\n\n');
+  alert('Kit BLOQUEADO\n\n' + msg);
+}
+
+/* Lineas de la reserva (equipos sueltos + kits) */
+function agregarKit() {
+  const id = +$('rKit').value, cant = Math.max(1, +$('rKitCant').value || 1);
+  if (!id) return;
+  KITS_SEL.push({ kit_id: id, cantidad: cant });
+  renderLineas();
+}
+function quitarKit(i) { KITS_SEL.splice(i, 1); renderLineas(); }
+function renderLineas() {
+  const box = $('rLineas');
+  if (!KITS_SEL.length) { box.innerHTML = '<span class="text-xs text-gray-500">Sin kits agregados. Un kit se reserva entero: si un componente choca, se bloquea todo.</span>'; return; }
+  box.innerHTML = KITS_SEL.map((k, i) => {
+    const kit = KITS.find(x => x.id === k.kit_id);
+    const comp = kit ? kit.desglose.map(d => `${d.cantidad}x ${d.equipo}`).join(', ') : '';
+    return `<div class="flex items-center gap-2 bg-[#e0cfa8] rounded-lg px-2 py-1">
+      <b>${kit ? kit.nombre : 'Kit'}</b> x${k.cantidad}
+      <span class="text-xs text-gray-600">${comp}</span>
+      <button class="ml-auto text-xs underline" onclick="quitarKit(${i})">quitar</button></div>`;
+  }).join('');
+}
 function consultar(equipoId) {
   go('inventario');
   $('dEq').value = equipoId;
@@ -136,9 +200,18 @@ async function verDisp() {
 async function reservar() {
   const eqs = [...$('rEqs').selectedOptions].map(o => +o.value);
   const r = await j('/api/alquileres', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ cliente_id: +$('rCli').value, inicio: $('rIni').value, fin: $('rFin').value, equipo_ids: eqs, garantia: { tipo: $('rGar').value, detalle: 'mostrador', monto: 0 } }) });
-  $('rRes').textContent = r.ok ? `OK ALQ-${r.alquiler_id} · ${r.dias} días · total ${money(r.total)}` : ('Error: ' + (r.error || '?'));
-  if (r.ok) { $('rTot').textContent = ''; load(); }
+    body: JSON.stringify({ cliente_id: +$('rCli').value, inicio: $('rIni').value, fin: $('rFin').value,
+      equipo_ids: eqs, kits: KITS_SEL, garantia: { tipo: $('rGar').value, detalle: 'mostrador', monto: 0 } }) });
+  if (r.ok) {
+    $('rRes').textContent = `OK ALQ-${r.alquiler_id} · ${r.dias} días · ${r.equipos} equipos · total ${money(r.total)}`;
+    KITS_SEL = []; renderLineas(); load();
+  } else {
+    $('rRes').textContent = 'Error: ' + (r.error || '?');
+    if (r.conflictos && r.conflictos.length) {
+      const detalle = r.conflictos.map(c => `${c.equipo} (${c.codigo}): ${c.motivo}${c.rango ? ' [' + c.rango + ']' : ''}`).join(' | ');
+      $('rRes').innerHTML = '<span class="text-red-700">Kit bloqueado → ' + detalle + '</span>';
+    }
+  }
 }
 async function retiro() {
   const r = await j('/api/alquileres/' + $('mAlq').value + '/retiro', { method: 'POST' });
@@ -175,7 +248,13 @@ async function crearEquipo() {
 }
 async function verSaldo() {
   const r = await j('/api/alquileres/' + $('pAlq').value);
-  $('rPago').innerHTML = r.error ? r.error : `ALQ-${r.id} · presup ${money(r.total_presupuesto)} + mora ${money(r.total_mora || 0)} − pagado ${money(r.pagado)} = <b>saldo ${money(r.saldo)}</b> (${r.estado})<br><span class="text-gray-500 text-xs">Garantía: ${(r.garantias || []).map(g => g.tipo).join(', ') || '—'} · Pagos: ${(r.pagos || []).map(p => p.tipo + ' ' + money(p.monto)).join(' · ') || '—'}</span>`;
+  if (r.error) { $('rPago').textContent = r.error; return; }
+  const detalle = (r.detalle || []).map(d => `<div class="flex justify-between text-xs border-b py-1">
+    <span>${d.equipo} ${d.kit ? '<b class="text-gray-600">(' + d.kit + ')</b>' : ''}</span>
+    <span>${money(d.subtotal)}</span></div>`).join('');
+  $('rPago').innerHTML = `ALQ-${r.id} · presup ${money(r.total_presupuesto)} + mora ${money(r.total_mora || 0)} − pagado ${money(r.pagado)} = <b>saldo ${money(r.saldo)}</b> (${r.estado})
+    <br><span class="text-gray-500 text-xs">Garantía: ${(r.garantias || []).map(g => g.tipo).join(', ') || '—'} · Pagos: ${(r.pagos || []).map(p => p.tipo + ' ' + money(p.monto)).join(' · ') || '—'}</span>
+    <div class="mt-2">${detalle}</div>`;
 }
 async function pagar() {
   await j('/api/pagos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alquiler_id: +$('pAlq').value, tipo: $('pTipo').value, monto: +$('pMonto').value }) });
@@ -183,10 +262,15 @@ async function pagar() {
 }
 
 /* Estimar total al elegir equipos/fechas */
-$('rEqs').onchange = $('rIni').onchange = $('rFin').onchange = () => {
+$('rEqs').onchange = $('rIni').onchange = $('rFin').onchange = $('rKit').onchange = $('rKitCant').onchange = () => {
   const dias = ($('rIni').value && $('rFin').value) ? Math.max(1, Math.round((new Date($('rFin').value) - new Date($('rIni').value)) / 86400000) + 1) : 0;
   const eqs = [...$('rEqs').selectedOptions].map(o => EQ.find(e => e.id === +o.value)).filter(Boolean);
-  $('rTot').textContent = dias && eqs.length ? `Estimado: ${dias} días · ${money(eqs.reduce((s, e) => s + Number(e.precio_dia), 0) * dias)}` : '';
+  let total = eqs.reduce((s, e) => s + Number(e.precio_dia), 0);
+  for (const k of KITS_SEL) {
+    const kit = KITS.find(x => x.id === k.kit_id);
+    if (kit) total += Number(kit.precio_calculado) * k.cantidad;
+  }
+  $('rTot').textContent = (dias && total) ? `Estimado: ${dias} días · ${money(total * dias)}` : '';
 };
 
 load();

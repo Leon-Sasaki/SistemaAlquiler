@@ -16,27 +16,52 @@ const DB_PATH = path.join(__dirname, 'alquiler.db');
 const db = new DatabaseSync(DB_PATH);
 db.exec('PRAGMA foreign_keys = ON;');
 db.exec(fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8'));
-// Migración: mora persistida (enunciado: penalidades por mora)
-try { db.exec('ALTER TABLE alquileres ADD COLUMN total_mora REAL DEFAULT 0'); } catch (e) { /* ya existe */ }
+
+// --- Migraciones idempotentes (DBs creadas antes de estos cambios) ---
+function migrar() {
+  const cols = [
+    ['equipos', 'modelo', 'TEXT'],
+    ['equipos', 'tipo_mantenimiento', "TEXT DEFAULT 'CORRECTIVO'"],
+    ['alquileres', 'total_mora', 'REAL DEFAULT 0'],
+    ['detalle_alquiler', 'kit_id', 'INTEGER REFERENCES kits(id)'],
+    ['detalle_alquiler', 'cantidad', 'INTEGER DEFAULT 1']
+  ];
+  for (const [t, c, d] of cols) {
+    try { db.exec(`ALTER TABLE ${t} ADD COLUMN ${c} ${d}`); } catch (e) { /* ya existe */ }
+  }
+}
+migrar();
 
 // Seed mínimo si está vacío (enunciado: cámaras, lentes, consolas, micrófonos, luces, generadores)
 if (db.prepare('SELECT COUNT(*) c FROM equipos').get().c === 0) {
-  db.prepare("INSERT INTO categorias (nombre) VALUES ('Camaras'),('Lentes'),('Sonido'),('Luces'),('Generadores')").run();
-  db.prepare(`INSERT INTO equipos (codigo,categoria_id,nombre,valor_reposicion,precio_dia,estado_operativo) VALUES
-    ('CAM-SONY-A7-01',1,'Sony A7 III',2500,15000,'DISPONIBLE'),
-    ('CAM-BMPCC-01',1,'Blackmagic Pocket 6K',3000,22000,'DISPONIBLE'),
-    ('LEN-CANON-01',2,'Lente Canon RF 24-70',1800,8000,'DISPONIBLE'),
-    ('CON-YAM-01',3,'Consola Yamaha TF1',4000,20000,'DISPONIBLE'),
-    ('MIC-SEN-01',3,'Mic Sennheiser EW',800,5000,'DISPONIBLE'),
-    ('MIC-RODE-01',3,'Rode Wireless GO II',600,4500,'MANTENIMIENTO'),
-    ('LUZ-APU-01',4,'Aputure 600D Pro',1500,12000,'DISPONIBLE'),
-    ('GEN-HON-01',5,'Generador Honda 5kW',2500,18000,'DISPONIBLE')`).run();
+  db.prepare("INSERT INTO categorias (nombre) VALUES ('Camaras'),('Lentes'),('Sonido'),('Luces'),('Generadores'),('Soportes')").run();
+  // codigo | modelo | cat | nombre | valor | precio/dia | estado
+  db.prepare(`INSERT INTO equipos (codigo,modelo,categoria_id,nombre,valor_reposicion,precio_dia,estado_operativo) VALUES
+    ('CAM-SONY-A7-01','CAM-SONY-A7',1,'Sony A7 III',2500,15000,'DISPONIBLE'),
+    ('CAM-SONY-A7-02','CAM-SONY-A7',1,'Sony A7 III',2500,15000,'DISPONIBLE'),
+    ('CAM-BMPCC-01','CAM-BMPCC',1,'Blackmagic Pocket 6K',3000,22000,'DISPONIBLE'),
+    ('LEN-CANON-01','LEN-CANON-2470',2,'Lente Canon RF 24-70',1800,8000,'DISPONIBLE'),
+    ('CON-YAM-01','CON-YAM',3,'Consola Yamaha TF1',4000,20000,'DISPONIBLE'),
+    ('MIC-SEN-01','MIC-SEN',3,'Mic Sennheiser EW',800,5000,'DISPONIBLE'),
+    ('MIC-SEN-02','MIC-SEN',3,'Mic Sennheiser EW',800,5000,'DISPONIBLE'),
+    ('MIC-RODE-01','MIC-RODE',3,'Rode Wireless GO II',600,4500,'MANTENIMIENTO'),
+    ('MIC-RODE-02','MIC-RODE',3,'Rode Wireless GO II',600,4500,'DISPONIBLE'),
+    ('LUZ-APU-01','LUZ-APU',4,'Aputure 600D Pro',1500,12000,'DISPONIBLE'),
+    ('TRP-MAN-01','TRP-MAN',6,'Tripode Manfrotto 546B',700,8000,'DISPONIBLE'),
+    ('GEN-HON-01','GEN-HON',5,'Generador Honda 5kW',2500,18000,'DISPONIBLE')`).run();
   db.prepare(`INSERT INTO clientes (tipo,nombre,whatsapp) VALUES
     ('PRODUCTORA','Onda Films','1100000001'),
     ('AGENCIA','Estudio Nomada','1100000002'),
     ('SONIDISTA','Ferrer Producciones','1100000003'),
     ('INDEPENDIENTE','Colectivo Luz','1100000004')`).run();
-  console.log('Seed inicial cargado');
+  // Kits promocionales (precio propio con descuento; NULL = suma de componentes)
+  db.prepare(`INSERT INTO kits (codigo,nombre,descripcion,precio_dia) VALUES
+    ('KIT-ENTREV','Kit Entrevista','1 camara Sony A7 + 2 mics Sennheiser + 1 tripode',29000),
+    ('KIT-ROD','Kit Rodaje','1 camara Blackmagic + 2 mics Rode + 1 luz Aputure',39000)`).run();
+  db.prepare(`INSERT INTO kit_items (kit_id,modelo,cantidad) VALUES
+    (1,'CAM-SONY-A7',1),(1,'MIC-SEN',2),(1,'TRP-MAN',1),
+    (2,'CAM-BMPCC',1),(2,'MIC-RODE',2),(2,'LUZ-APU',1)`).run();
+  console.log('Seed inicial cargado (equipos + kits)');
 }
 
 // --- Lógica de negocio ---
@@ -45,14 +70,32 @@ function haySolape(aIni, aFin, bIni, bFin) {
   return aIni <= bFin && aFin >= bIni;
 }
 
+// Rango REALMENTE ocupado por un alquiler (R1 robusto):
+// - si el alquiler sigue abierto, el equipo esta afuera hasta hoy como minimo;
+// - si ya se devolvio, el equipo estuvo afuera hasta la fecha real de devolucion
+//   (puede ser posterior a la prevista = devolucion tardia).
+function rangoOcupacion(a) {
+  const hoy = new Date().toISOString().slice(0, 10);
+  const ini = a.fecha_retiro_real || a.fecha_retiro_prevista;
+  const enCurso = ['RESERVADO', 'ACTIVO', 'VENCIDO'].includes(a.estado);
+  let fin = a.fecha_devolucion_prevista;
+  if (a.fecha_devolucion_real && a.fecha_devolucion_real > fin) fin = a.fecha_devolucion_real;
+  if (enCurso && fin < hoy) fin = hoy;
+  return { ini, fin };
+}
+
 function equipoOcupadoEn(equipoId, inicio, fin, excluirAlquilerId = null) {
-  let sql = `SELECT a.fecha_retiro_prevista ini, a.fecha_devolucion_prevista fin
+  let sql = `SELECT a.estado, a.fecha_retiro_prevista, a.fecha_devolucion_prevista,
+      a.fecha_retiro_real, a.fecha_devolucion_real
     FROM detalle_alquiler d JOIN alquileres a ON a.id = d.alquiler_id
-    WHERE d.equipo_id = ? AND a.estado IN ('RESERVADO','ACTIVO','VENCIDO')`;
+    WHERE d.equipo_id = ? AND a.estado IN ('RESERVADO','ACTIVO','VENCIDO','DEVUELTO')`;
   const params = [equipoId];
   if (excluirAlquilerId) { sql += ' AND a.id != ?'; params.push(excluirAlquilerId); }
   const rows = db.prepare(sql).all(...params);
-  return rows.some(r => haySolape(inicio, fin, r.ini, r.fin));
+  return rows.some(r => {
+    const ef = rangoOcupacion(r);
+    return haySolape(inicio, fin, ef.ini, ef.fin);
+  });
 }
 
 function disponibilidad(equipoId, inicio, fin) {
@@ -63,6 +106,65 @@ function disponibilidad(equipoId, inicio, fin) {
   if (equipoOcupadoEn(equipoId, inicio, fin))
     return { libre: false, motivo: 'Reservado en esas fechas (R1)' }; // R1
   return { libre: true, motivo: 'Libre' };
+}
+
+// ---------- KITS: disponibilidad en cadena ----------
+// Un kit se reserva entero o no se reserva (todo o nada).
+// La disponibilidad del kit es el AND de la disponibilidad de cada componente.
+function unidadesDeModelo(modelo) {
+  return db.prepare("SELECT * FROM equipos WHERE modelo = ? AND estado_operativo != 'BAJA' ORDER BY id").all(modelo);
+}
+
+function unidadesLibres(modelo, inicio, fin, excluirAlquilerId = null) {
+  return unidadesDeModelo(modelo).filter(u =>
+    u.estado_operativo === 'DISPONIBLE' && !equipoOcupadoEn(u.id, inicio, fin, excluirAlquilerId));
+}
+
+// Devuelve {libre, conflictos[]} con el RECURSO EN CONFLICTO (requisito del enunciado)
+function disponibilidadKit(kitId, inicio, fin, excluirAlquilerId = null) {
+  const kit = db.prepare('SELECT * FROM kits WHERE id = ?').get(kitId);
+  if (!kit) return { libre: false, kit: null, conflictos: [{ motivo: 'Kit inexistente' }] };
+  const items = db.prepare('SELECT modelo, cantidad FROM kit_items WHERE kit_id = ?').all(kitId);
+  const conflictos = [];
+  for (const it of items) {
+    const libres = unidadesLibres(it.modelo, inicio, fin, excluirAlquilerId);
+    if (libres.length < it.cantidad) {
+      // identificar el recurso en conflicto: primero el bloqueado por estado, luego el reservado
+      const todas = unidadesDeModelo(it.modelo);
+      const bloqueado = todas.find(u => u.estado_operativo !== 'DISPONIBLE');
+      const reservado = todas.find(u => u.estado_operativo === 'DISPONIBLE' && equipoOcupadoEn(u.id, inicio, fin, excluirAlquilerId));
+      const culpable = bloqueado || reservado;
+      const fila = db.prepare(`SELECT a.estado, a.fecha_retiro_prevista, a.fecha_devolucion_prevista,
+          a.fecha_retiro_real, a.fecha_devolucion_real, c.nombre cliente
+        FROM detalle_alquiler d JOIN alquileres a ON a.id=d.alquiler_id JOIN clientes c ON c.id=a.cliente_id
+        WHERE d.equipo_id = ? AND a.estado IN ('RESERVADO','ACTIVO','VENCIDO','DEVUELTO')`).all(culpable?.id)[0];
+      const ef = fila ? rangoOcupacion(fila) : null;
+      conflictos.push({
+        modelo: it.modelo,
+        requeridos: it.cantidad,
+        disponibles: libres.length,
+        equipo: culpable ? culpable.nombre : it.modelo,
+        codigo: culpable ? culpable.codigo : it.modelo,
+        motivo: bloqueado
+          ? 'En ' + bloqueado.estado_operativo + (bloqueado.tipo_mantenimiento ? ' ' + bloqueado.tipo_mantenimiento.toLowerCase() : '')
+          : 'Reservado en esas fechas',
+        rango: ef ? `${ef.ini} → ${ef.fin}` : null,
+        cliente: fila ? fila.cliente : null
+      });
+    }
+  }
+  return { libre: conflictos.length === 0, kit, conflictos };
+}
+
+// Asigna unidades fisicas concretas para un kit (politica: la mas antigua disponible)
+function asignarUnidadesKit(kitId, inicio, fin, excluirAlquilerId = null) {
+  const items = db.prepare('SELECT modelo, cantidad FROM kit_items WHERE kit_id = ?').all(kitId);
+  const asignadas = [];
+  for (const it of items) {
+    const libres = unidadesLibres(it.modelo, inicio, fin, excluirAlquilerId);
+    for (const u of libres.slice(0, it.cantidad)) asignadas.push({ equipo_id: u.id, modelo: it.modelo });
+  }
+  return asignadas;
 }
 
 function diasEntre(ini, fin) {
@@ -85,15 +187,17 @@ app.get('/api/alquileres', (req, res) => {
     JOIN clientes c ON c.id=a.cliente_id ORDER BY a.id DESC`).all();
   res.json(rows.map(a => ({
     ...a,
-    equipos: db.prepare(`SELECT e.codigo, e.nombre FROM detalle_alquiler d
-      JOIN equipos e ON e.id=d.equipo_id WHERE d.alquiler_id=?`).all(a.id),
+    equipos: db.prepare(`SELECT e.id, e.codigo, e.nombre, d.kit_id, k.nombre kit, d.cantidad
+      FROM detalle_alquiler d JOIN equipos e ON e.id=d.equipo_id
+      LEFT JOIN kits k ON k.id=d.kit_id WHERE d.alquiler_id=?`).all(a.id),
     pagado: db.prepare('SELECT IFNULL(SUM(monto),0) s FROM pagos WHERE alquiler_id=?').get(a.id).s
   })));
 });
 
 app.post('/api/equipos/estado', (req, res) => {
-  const { equipo_id, estado, observacion } = req.body; // HU08
-  db.prepare('UPDATE equipos SET estado_operativo=? WHERE id=?').run(estado, equipo_id);
+  const { equipo_id, estado, observacion, tipo_mantenimiento } = req.body; // HU08
+  db.prepare('UPDATE equipos SET estado_operativo=?, tipo_mantenimiento=? WHERE id=?')
+    .run(estado, estado === 'MANTENIMIENTO' ? (tipo_mantenimiento || 'CORRECTIVO') : null, equipo_id);
   db.prepare(`INSERT INTO movimientos (equipo_id,fecha,tipo,observacion) VALUES (?,?,?,?)`)
     .run(equipo_id, new Date().toISOString().slice(0, 10), estado === 'DISPONIBLE' ? 'EGRESO_MANT' : 'INGRESO_MANT', observacion || '');
   res.json({ ok: true });
@@ -105,32 +209,136 @@ app.get('/api/disponibilidad', (req, res) => { // HU01
   res.json(disponibilidad(Number(equipo_id), inicio, fin));
 });
 
-app.post('/api/alquileres', (req, res) => { // HU02
-  const { cliente_id, inicio, fin, equipo_ids, garantia } = req.body;
-  if (!cliente_id || !inicio || !fin || !Array.isArray(equipo_ids) || !equipo_ids.length)
-    return res.status(400).json({ error: 'cliente_id, inicio, fin, equipo_ids[] requeridos' });
+// ---------- API KITS ----------
+app.get('/api/kits', (req, res) => { // catalogo de kits con desglose
+  const { inicio, fin } = req.query;
+  const kits = db.prepare('SELECT * FROM kits WHERE activo = 1 ORDER BY nombre').all();
+  const out = kits.map(k => {
+    const items = db.prepare('SELECT modelo, cantidad FROM kit_items WHERE kit_id=?').all(k.id);
+    const desglose = items.map(it => {
+      const unidades = unidadesDeModelo(it.modelo);
+      const libres = (inicio && fin) ? unidadesLibres(it.modelo, inicio, fin) : unidades.filter(u => u.estado_operativo === 'DISPONIBLE');
+      const primera = unidades[0];
+      return {
+        modelo: it.modelo, cantidad: it.cantidad,
+        equipo: primera ? primera.nombre : it.modelo,
+        unidades_totales: unidades.length,
+        unidades_libres: libres.length,
+        suficiente: libres.length >= it.cantidad
+      };
+    });
+    const completo = desglose.every(d => d.suficiente);
+    const precioKit = k.precio_dia != null ? k.precio_dia : desglose.reduce((s, d) => {
+      const u = unidadesDeModelo(d.modelo)[0];
+      return s + (u ? u.precio_dia * d.cantidad : 0);
+    }, 0);
+    return { ...k, desglose, completo, precio_calculado: precioKit,
+      estado: (inicio && fin) ? (completo ? 'DISPONIBLE' : 'BLOQUEADO') : null };
+  });
+  res.json(out);
+});
+
+app.get('/api/kits/:id/disponibilidad', (req, res) => { // bloqueo en cadena
+  const { inicio, fin } = req.query;
+  if (!inicio || !fin) return res.status(400).json({ error: 'inicio y fin requeridos (YYYY-MM-DD)' });
+  const d = disponibilidadKit(Number(req.params.id), inicio, fin);
+  res.json({ libre: d.libre, kit: d.kit ? { id: d.kit.id, nombre: d.kit.nombre } : null, conflictos: d.conflictos });
+});
+
+app.post('/api/kits', (req, res) => { // alta de kit
+  const { codigo, nombre, descripcion, precio_dia, componentes } = req.body;
+  if (!codigo || !nombre) return res.status(400).json({ error: 'codigo y nombre requeridos' });
+  try {
+    const r = db.prepare('INSERT INTO kits (codigo,nombre,descripcion,precio_dia) VALUES (?,?,?,?)')
+      .run(codigo, nombre, descripcion || '', precio_dia != null && precio_dia !== '' ? Number(precio_dia) : null);
+    const kitId = r.lastInsertRowid;
+    for (const c of (componentes || []))
+      db.prepare('INSERT INTO kit_items (kit_id,modelo,cantidad) VALUES (?,?,?)').run(kitId, c.modelo, Number(c.cantidad) || 1);
+    res.json({ ok: true, id: kitId });
+  } catch (e) { res.status(409).json({ error: 'codigo de kit duplicado' }); }
+});
+
+app.post('/api/alquileres', (req, res) => { // HU02 (admite equipos sueltos y/o kits)
+  const { cliente_id, inicio, fin, equipo_ids, kits, garantia } = req.body;
+  const sueltos = Array.isArray(equipo_ids) ? equipo_ids.map(Number) : [];
+  const pedidoKits = Array.isArray(kits) ? kits : [];
+  if (!cliente_id || !inicio || !fin)
+    return res.status(400).json({ error: 'cliente_id, inicio, fin requeridos' });
+  if (!sueltos.length && !pedidoKits.length)
+    return res.status(400).json({ error: 'Se requiere al menos un equipo o un kit' });
   if (fin < inicio) return res.status(400).json({ error: 'fin < inicio' });
-  // Validar cada equipo
-  for (const eid of equipo_ids) {
+
+  // 1) Validar KITS: todo o nada. Si un componente choca, cae el kit entero.
+  const conflictos = [];
+  const lineas = []; // {equipo_id, kit_id}
+  for (const k of pedidoKits) {
+    const kitId = Number(k.kit_id), qty = Math.max(1, Number(k.cantidad) || 1);
+    for (let n = 0; n < qty; n++) {
+      const d = disponibilidadKit(kitId, inicio, fin);
+      if (!d.libre) {
+        conflictos.push(...d.conflictos.map(c => ({ ...c, kit: d.kit?.nombre || 'Kit' })));
+        continue;
+      }
+      for (const u of asignarUnidadesKit(kitId, inicio, fin)) lineas.push({ equipo_id: u.equipo_id, kit_id: kitId });
+    }
+  }
+  if (conflictos.length)
+    return res.status(409).json({ error: 'Kit no disponible: un componente esta en conflicto', conflictos });
+
+  // 2) Validar equipos sueltos
+  for (const eid of sueltos) {
     const d = disponibilidad(eid, inicio, fin);
     if (!d.libre) return res.status(409).json({ error: `Equipo ${eid} no disponible: ${d.motivo}` });
+    lineas.push({ equipo_id: eid, kit_id: null });
   }
+
+  // 3) Dedup: el mismo equipo fisico no puede aparecer dos veces en el mismo alquiler
+  const vistos = new Set();
+  const unicas = [];
+  for (const l of lineas) {
+    if (vistos.has(l.equipo_id)) continue;
+    vistos.add(l.equipo_id);
+    unicas.push(l);
+  }
+  if (!unicas.length) return res.status(400).json({ error: 'No quedan equipos validos para reservar' });
+
+  // 4) Calculo de precios (transaccional: todo o nada)
   const dias = diasEntre(inicio, fin);
-  const tx = db.prepare('INSERT INTO alquileres (cliente_id,estado,fecha_retiro_prevista,fecha_devolucion_prevista,total_presupuesto) VALUES (?,?,?,?,?)');
-  let total = 0;
-  const items = equipo_ids.map(eid => {
-    const eq = db.prepare('SELECT * FROM equipos WHERE id=?').get(eid);
-    const sub = eq.precio_dia * dias; total += sub;
-    return { eid, precio: eq.precio_dia, sub };
-  });
-  const r = tx.run(cliente_id, 'RESERVADO', inicio, fin, total);
-  const alqId = r.lastInsertRowid;
-  for (const it of items)
-    db.prepare('INSERT INTO detalle_alquiler (alquiler_id,equipo_id,precio_dia,subtotal) VALUES (?,?,?,?)').run(alqId, it.eid, it.precio, it.sub);
-  if (garantia)
-    db.prepare('INSERT INTO garantias (alquiler_id,tipo,detalle,monto_cubierto) VALUES (?,?,?,?)')
-      .run(alqId, garantia.tipo, garantia.detalle || '', garantia.monto || 0);
-  res.json({ ok: true, alquiler_id: alqId, total, dias });
+  db.exec('BEGIN');
+  try {
+    // precio propio del kit (si tiene) prorrateado entre sus lineas
+    const porKit = new Map();
+    for (const l of unicas) if (l.kit_id) porKit.set(l.kit_id, (porKit.get(l.kit_id) || 0) + 1);
+    const precioKit = new Map();
+    for (const [kitId, nLineas] of porKit) {
+      const kit = db.prepare('SELECT * FROM kits WHERE id=?').get(kitId);
+      const qty = pedidoKits.filter(k => Number(k.kit_id) === kitId).reduce((s, k) => s + Math.max(1, Number(k.cantidad) || 1), 0);
+      const totalKit = kit.precio_dia != null ? kit.precio_dia * qty : null;
+      precioKit.set(kitId, totalKit != null ? totalKit / nLineas : null);
+    }
+    let total = 0;
+    const items = unicas.map(l => {
+      const eq = db.prepare('SELECT * FROM equipos WHERE id=?').get(l.equipo_id);
+      const pr = l.kit_id && precioKit.get(l.kit_id) != null ? precioKit.get(l.kit_id) : eq.precio_dia;
+      const sub = pr * dias; total += sub;
+      return { ...l, precio: pr, sub };
+    });
+    const r = db.prepare(`INSERT INTO alquileres (cliente_id,estado,fecha_retiro_prevista,fecha_devolucion_prevista,total_presupuesto)
+      VALUES (?,?,?,?,?)`).run(cliente_id, 'RESERVADO', inicio, fin, total);
+    const alqId = r.lastInsertRowid;
+    for (const it of items)
+      db.prepare(`INSERT INTO detalle_alquiler (alquiler_id,equipo_id,kit_id,cantidad,precio_dia,subtotal)
+        VALUES (?,?,?,?,?,?)`).run(alqId, it.equipo_id, it.kit_id, 1, it.precio, it.sub);
+    if (garantia)
+      db.prepare('INSERT INTO garantias (alquiler_id,tipo,detalle,monto_cubierto) VALUES (?,?,?,?)')
+        .run(alqId, garantia.tipo, garantia.detalle || '', garantia.monto || 0);
+    db.exec('COMMIT');
+    res.json({ ok: true, alquiler_id: alqId, total, dias, equipos: items.length,
+      detalle: items.map(i => ({ equipo_id: i.equipo_id, kit_id: i.kit_id })) });
+  } catch (e) {
+    db.exec('ROLLBACK');
+    res.status(500).json({ error: 'No se pudo crear la reserva: ' + e.message });
+  }
 });
 
 app.post('/api/alquileres/:id/retiro', (req, res) => { // HU03 + R3
@@ -160,8 +368,9 @@ app.post('/api/alquileres/:id/devolucion', (req, res) => { // HU04 + R4/R5
   }
   for (const d of db.prepare('SELECT * FROM detalle_alquiler WHERE alquiler_id=?').all(alq.id)) {
     const est = (estado_equipos && estado_equipos[d.equipo_id]) || 'DISPONIBLE';
-    const final = est === 'DANADO' ? 'MANTENIMIENTO' : 'DISPONIBLE'; // R4
-    db.prepare('UPDATE equipos SET estado_operativo=? WHERE id=?').run(final, d.equipo_id);
+    const final = est === 'DANADO' ? 'MANTENIMIENTO' : 'DISPONIBLE'; // R4 (por unidad fisica)
+    db.prepare('UPDATE equipos SET estado_operativo=?, tipo_mantenimiento=? WHERE id=?')
+      .run(final, est === 'DANADO' ? 'CORRECTIVO' : null, d.equipo_id);
     db.prepare('INSERT INTO movimientos (equipo_id,alquiler_id,fecha,tipo,estado_recibido) VALUES (?,?,?,?,?)')
       .run(d.equipo_id, alq.id, hoy, 'DEVOLUCION', est);
   }
@@ -280,8 +489,8 @@ app.get('/api/alquileres/:id', (req, res) => {
   const a = db.prepare(`SELECT a.*, c.nombre cliente FROM alquileres a
     JOIN clientes c ON c.id=a.cliente_id WHERE a.id=?`).get(req.params.id);
   if (!a) return res.status(404).json({ error: 'No existe' });
-  const det = db.prepare(`SELECT d.*, e.codigo, e.nombre equipo FROM detalle_alquiler d
-    JOIN equipos e ON e.id=d.equipo_id WHERE d.alquiler_id=?`).all(a.id);
+  const det = db.prepare(`SELECT d.*, e.codigo, e.nombre equipo, k.nombre kit FROM detalle_alquiler d
+    JOIN equipos e ON e.id=d.equipo_id LEFT JOIN kits k ON k.id=d.kit_id WHERE d.alquiler_id=?`).all(a.id);
   const pagos = db.prepare('SELECT * FROM pagos WHERE alquiler_id=? ORDER BY id').all(a.id);
   const gar = db.prepare('SELECT * FROM garantias WHERE alquiler_id=?').all(a.id);
   const pagado = pagos.reduce((s, p) => s + p.monto, 0);

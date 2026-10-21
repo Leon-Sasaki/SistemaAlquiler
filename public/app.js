@@ -58,17 +58,19 @@ async function load() {
   // Chart ingresos
   if (chart) chart.destroy();
   chart = new Chart($('chIng'), { type: 'bar',
-    data: { labels: res.ingresos.map(i => i.mes), datasets: [{ data: res.ingresos.map(i => i.total), backgroundColor: '#dfe1f7', borderRadius: 6 }] },
-    options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } } });
+    data: { labels: res.ingresos.map(i => i.mes), datasets: [{ data: res.ingresos.map(i => i.total), backgroundColor: '#818cf8', borderRadius: 6 }] },
+    options: { plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true, ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+                x: { ticks: { color: '#94a3b8' }, grid: { display: false } } } } });
 
   // Disponibilidad por categoría
   $('catBars').innerHTML = Object.entries(res.porCategoria).map(([k, v]) => {
     const pct = v.total ? Math.round(v.libres / v.total * 100) : 0;
-    return `<div><div class="flex justify-between text-sm"><span>${k}</span><span class="text-[#bfc2e8]">${v.libres} / ${v.total}</span></div><div class="bar"><i style="width:${pct}%"></i></div></div>`;
-  }).join('') || '<span class="text-sm text-[#bfc2e8]">Sin equipos</span>';
+    return `<div><div class="flex justify-between text-sm"><span>${k}</span><span class="text-[#94a3b8]">${v.libres} / ${v.total}</span></div><div class="bar"><i style="width:${pct}%"></i></div></div>`;
+  }).join('') || '<span class="text-sm text-[#94a3b8]">Sin equipos</span>';
 
   // Recientes
-  $('tRec').innerHTML = `<table class="w-full text-sm"><tr class="text-[#bfc2e8]"><th class="text-left py-1">Referencia</th><th class="text-left">Cliente</th><th class="text-left">Fechas</th><th class="text-left">Estado</th><th class="text-right">Total</th></tr>` +
+  $('tRec').innerHTML = `<table class="w-full text-sm"><tr class="text-[#94a3b8]"><th class="text-left py-1">Referencia</th><th class="text-left">Cliente</th><th class="text-left">Fechas</th><th class="text-left">Estado</th><th class="text-right">Total</th></tr>` +
     res.recientes.map(a => `<tr class="border-t"><td class="py-2">ALQ-${a.id}</td><td>${a.cliente}</td><td class="text-xs">${a.fecha_retiro_prevista} — ${a.fecha_devolucion_prevista}</td><td>${pill(a.estado)}</td><td class="text-right">${money(a.total_presupuesto)}</td></tr>`).join('') + '</table>';
 
   // Inventario
@@ -86,10 +88,10 @@ async function load() {
   // Alquileres + clientes
   renderAlq();
   $('rCli').innerHTML = cli.map(c => `<option value="${c.id}">${c.nombre} (${c.tipo})</option>`).join('');
-  $('tCli').innerHTML = `<table class="w-full text-sm"><tr class="text-[#bfc2e8]"><th class="text-left py-1">Cliente</th><th class="text-left">Tipo</th><th class="text-left">Contacto</th></tr>` +
+  $('tCli').innerHTML = `<table class="w-full text-sm"><tr class="text-[#94a3b8]"><th class="text-left py-1">Cliente</th><th class="text-left">Tipo</th><th class="text-left">Contacto</th></tr>` +
     cli.map(c => `<tr class="border-t"><td class="py-2 font-medium">${c.nombre}</td><td>${c.tipo}</td><td class="text-xs">${c.whatsapp || ''}</td></tr>`).join('') + '</table>';
-  $('tDeud').innerHTML = deud.length ? `<table class="w-full text-sm"><tr class="text-[#bfc2e8]"><th class="text-left">Ref</th><th class="text-left">Cliente</th><th class="text-right">Saldo</th></tr>` +
-    deud.map(r => `<tr class="border-t"><td>ALQ-${r.id}</td><td>${r.cliente}<br><span class="text-xs text-[#bfc2e8]">presup ${money(r.total_presupuesto)}${r.total_mora ? ' + mora ' + money(r.total_mora) : ''} · pagado ${money(r.pagado)}</span></td><td class="text-right font-semibold text-[#ff9d9d]">${money(r.saldo)}</td></tr>`).join('') + '</table>' : '<span class="text-sm text-[#bfc2e8]">Sin deudores. A fin de mes esto responde quién debe días o recargos.</span>';
+  $('tDeud').innerHTML = deud.length ? `<table class="w-full text-sm"><tr class="text-[#94a3b8]"><th class="text-left">Ref</th><th class="text-left">Cliente</th><th class="text-right">Saldo</th></tr>` +
+    deud.map(r => `<tr class="border-t"><td>ALQ-${r.id}</td><td>${r.cliente}<br><span class="text-xs text-[#94a3b8]">presup ${money(r.total_presupuesto)}${r.total_mora ? ' + mora ' + money(r.total_mora) : ''} · pagado ${money(r.pagado)}</span></td><td class="text-right font-semibold text-[#fca5a5]">${money(r.saldo)}</td></tr>`).join('') + '</table>' : '<span class="text-sm text-[#94a3b8]">Sin deudores. A fin de mes esto responde quién debe días o recargos.</span>';
   lucide.createIcons();
 }
 
@@ -104,8 +106,8 @@ function renderEq() {
   const rows = EQ.filter(x => (!c || x.categoria === c) && (!e || x.estado_operativo === e) &&
     (!q || (x.nombre + ' ' + x.codigo + ' ' + (x.categoria || '')).toLowerCase().includes(q)));
   $('nEq').textContent = rows.length + ' de ' + EQ.length;
-  $('tEq').innerHTML = `<table class="w-full text-sm"><tr class="text-[#bfc2e8]"><th class="text-left py-1">Equipo</th><th class="text-left">Modelo</th><th class="text-left">Categoría</th><th class="text-left">Estado</th><th class="text-right">Tarifa / día</th><th></th></tr>` +
-    rows.map(x => `<tr class="border-t"><td class="py-2"><b>${x.nombre}</b><br><span class="text-xs text-[#bfc2e8]">${x.codigo}</span></td><td class="text-xs">${x.modelo || '—'}</td><td>${x.categoria || ''}</td><td>${pill(x.estado_operativo)}</td><td class="text-right">${money(x.precio_dia)}</td>
+  $('tEq').innerHTML = `<table class="w-full text-sm"><tr class="text-[#94a3b8]"><th class="text-left py-1">Equipo</th><th class="text-left">Modelo</th><th class="text-left">Categoría</th><th class="text-left">Estado</th><th class="text-right">Tarifa / día</th><th></th></tr>` +
+    rows.map(x => `<tr class="border-t"><td class="py-2"><b>${x.nombre}</b><br><span class="text-xs text-[#94a3b8]">${x.codigo}</span></td><td class="text-xs">${x.modelo || '—'}</td><td>${x.categoria || ''}</td><td>${pill(x.estado_operativo)}</td><td class="text-right">${money(x.precio_dia)}</td>
     <td class="text-right whitespace-nowrap"><button class="text-xs underline mr-2" onclick="consultar(${x.id})">Consultar</button><button class="text-xs underline" onclick="bloquear(${x.id},'${x.estado_operativo}')">${x.estado_operativo === 'DISPONIBLE' ? 'A mantenimiento' : 'Liberar'}</button></td></tr>`).join('') + '</table>';
 }
 $('fCat').onchange = renderEq; $('fEst').onchange = renderEq;
@@ -116,7 +118,7 @@ function renderAlq() {
   const rows = ALQ.filter(a => (!FILTRO || a.estado === FILTRO) &&
     (!q || ('ALQ-' + a.id + ' ' + a.cliente + ' ' + a.equipos.map(x => x.nombre + ' ' + (x.kit || '')).join(' ') + ' ' + a.estado).toLowerCase().includes(q)));
   $('nAlq').textContent = rows.length + ' de ' + ALQ.length;
-  $('tAlq').innerHTML = `<table class="w-full text-sm"><tr class="text-[#bfc2e8]"><th class="text-left py-1">Referencia</th><th class="text-left">Cliente</th><th class="text-left">Equipos</th><th class="text-left">Período</th><th class="text-left">Estado</th><th class="text-right">Total</th><th></th></tr>` +
+  $('tAlq').innerHTML = `<table class="w-full text-sm"><tr class="text-[#94a3b8]"><th class="text-left py-1">Referencia</th><th class="text-left">Cliente</th><th class="text-left">Equipos</th><th class="text-left">Período</th><th class="text-left">Estado</th><th class="text-right">Total</th><th></th></tr>` +
     rows.map(a => {
       // agrupar por kit para mostrar "Kit X (n equipos)"
       const grupos = new Map();
@@ -137,13 +139,13 @@ $('qAlq').oninput = debounce(renderAlq, 150);
 function renderKits() {
   const ini = $('kIni').value, fin = $('kFin').value;
   const usarFechas = ini && fin;
-  $('tKits').innerHTML = `<table class="w-full text-sm"><tr class="text-[#bfc2e8]"><th class="text-left py-1">Kit</th><th class="text-left">Componentes</th><th class="text-right">Precio / dia</th><th class="text-left">Estado</th><th></th></tr>` +
+  $('tKits').innerHTML = `<table class="w-full text-sm"><tr class="text-[#94a3b8]"><th class="text-left py-1">Kit</th><th class="text-left">Componentes</th><th class="text-right">Precio / dia</th><th class="text-left">Estado</th><th></th></tr>` +
     KITS.map(k => {
-      const desglose = k.desglose.map(d => `${d.cantidad}x ${d.equipo} <span class="text-[#bfc2e8]">(${d.unidades_libres}/${d.unidades_totales} libres)</span>`).join('<br>');
+      const desglose = k.desglose.map(d => `${d.cantidad}x ${d.equipo} <span class="text-[#94a3b8]">(${d.unidades_libres}/${d.unidades_totales} libres)</span>`).join('<br>');
       const estado = usarFechas
         ? (k.completo ? pill('DISPONIBLE') : pill('VENCIDO') + ' bloqueado')
-        : '<span class="text-[#bfc2e8]">sin rango</span>';
-      return `<tr class="border-t"><td class="py-2"><b>${k.nombre}</b><br><span class="text-xs text-[#bfc2e8]">${k.codigo}</span></td>
+        : '<span class="text-[#94a3b8]">sin rango</span>';
+      return `<tr class="border-t"><td class="py-2"><b>${k.nombre}</b><br><span class="text-xs text-[#94a3b8]">${k.codigo}</span></td>
         <td class="text-xs">${desglose}</td><td class="text-right">${money(k.precio_calculado)}</td><td>${estado}</td>
         <td class="text-right"><button class="text-xs underline" onclick="conflictosKit(${k.id})">Conflictos</button></td></tr>`;
     }).join('') + '</table>';
@@ -170,13 +172,13 @@ function renderEqList() {
   $('rEqList').innerHTML = rows.length ? rows.map(e => {
     const sel = EQ_SEL.includes(e.id);
     const noDisp = e.estado_operativo !== 'DISPONIBLE';
-    return `<button class="w-full text-left px-2 py-1.5 flex items-center gap-2 hover:bg-[#4d50a0] ${sel ? 'bg-[#454895]' : ''}" onclick="toggleEq(${e.id})">
+    return `<button class="w-full text-left px-2 py-1.5 flex items-center gap-2 hover:bg-[#475569] ${sel ? 'bg-[#334155]' : ''}" onclick="toggleEq(${e.id})">
       <span class="w-3 h-3 rounded border flex items-center justify-center">${sel ? '✓' : ''}</span>
-      <span class="flex-1 truncate">${e.nombre} <span class="text-xs text-[#bfc2e8]">${e.codigo}</span></span>
+      <span class="flex-1 truncate">${e.nombre} <span class="text-xs text-[#94a3b8]">${e.codigo}</span></span>
       <span class="text-xs">${money(e.precio_dia)}/d</span>
       ${noDisp ? '<span class="pill p-' + e.estado_operativo + '">' + e.estado_operativo + '</span>' : ''}
     </button>`;
-  }).join('') : '<div class="p-2 text-xs text-[#bfc2e8]">Sin resultados</div>';
+  }).join('') : '<div class="p-2 text-xs text-[#94a3b8]">Sin resultados</div>';
 }
 function toggleEq(id) {
   const i = EQ_SEL.indexOf(id);
@@ -186,7 +188,7 @@ function toggleEq(id) {
   $('rEqSel').innerHTML = EQ_SEL.map(id => {
     const e = EQ.find(x => x.id === id);
     if (!e) return '';
-    return `<span class="inline-flex items-center gap-1 bg-[#454895] rounded-lg px-2 py-0.5 text-xs">${e.nombre}
+    return `<span class="inline-flex items-center gap-1 bg-[#334155] rounded-lg px-2 py-0.5 text-xs">${e.nombre}
       <button class="underline" onclick="toggleEq(${id})">x</button></span>`;
   }).join('');
 }
@@ -202,13 +204,13 @@ function agregarKit() {
 function quitarKit(i) { KITS_SEL.splice(i, 1); renderLineas(); estimar(); }
 function renderLineas() {
   const box = $('rLineas');
-  if (!KITS_SEL.length) { box.innerHTML = '<span class="text-xs text-[#a9add6]">Sin kits agregados. Un kit se reserva entero: si un componente choca, se bloquea todo.</span>'; return; }
+  if (!KITS_SEL.length) { box.innerHTML = '<span class="text-xs text-[#64748b]">Sin kits agregados. Un kit se reserva entero: si un componente choca, se bloquea todo.</span>'; return; }
   box.innerHTML = KITS_SEL.map((k, i) => {
     const kit = KITS.find(x => x.id === k.kit_id);
     const comp = kit ? kit.desglose.map(d => `${d.cantidad}x ${d.equipo}`).join(', ') : '';
-    return `<div class="flex items-center gap-2 bg-[#454895] rounded-lg px-2 py-1">
+    return `<div class="flex items-center gap-2 bg-[#334155] rounded-lg px-2 py-1">
       <b>${kit ? kit.nombre : 'Kit'}</b> x${k.cantidad}
-      <span class="text-xs text-[#a9add6]">${comp}</span>
+      <span class="text-xs text-[#64748b]">${comp}</span>
       <button class="ml-auto text-xs underline" onclick="quitarKit(${i})">quitar</button></div>`;
   }).join('');
 }
@@ -216,7 +218,7 @@ function renderLineas() {
 $('rKit').onchange = () => {
   const kit = KITS.find(x => x.id === +$('rKit').value);
   $('rKitDesglose').innerHTML = kit
-    ? 'Incluye: ' + kit.desglose.map(d => `${d.cantidad}x ${d.equipo} <span class="text-[#bfc2e8]">(${d.unidades_libres}/${d.unidades_totales} libres)</span>`).join(' · ')
+    ? 'Incluye: ' + kit.desglose.map(d => `${d.cantidad}x ${d.equipo} <span class="text-[#94a3b8]">(${d.unidades_libres}/${d.unidades_totales} libres)</span>`).join(' · ')
       + ` · ${money(kit.precio_calculado)}/día`
     : '';
   estimar();
@@ -262,7 +264,7 @@ async function reservar() {
     $('rRes').textContent = 'Error: ' + (r.error || '?');
     if (r.conflictos && r.conflictos.length) {
       const detalle = r.conflictos.map(c => `${c.equipo} (${c.codigo}): ${c.motivo}${c.rango ? ' [' + c.rango + ']' : ''}`).join(' | ');
-      $('rRes').innerHTML = '<span class="text-[#ff9d9d]">Kit bloqueado → ' + detalle + '</span>';
+      $('rRes').innerHTML = '<span class="text-[#fca5a5]">Kit bloqueado → ' + detalle + '</span>';
     }
   }
 }
@@ -321,11 +323,11 @@ function quitarComponente(i) { COMP.splice(i, 1); renderComp(); }
 function renderComp() {
   $('kComp').innerHTML = COMP.length ? COMP.map((c, i) => {
     const m = MODELOS.find(x => x.modelo === c.modelo);
-    const aviso = m && m.unidades < c.cantidad ? `<span class="text-[#ff9d9d]">solo ${m.unidades} unidades</span>` : '';
-    return `<div class="flex items-center gap-2 bg-[#454895] rounded-lg px-2 py-1">
-      <b>${c.cantidad}x</b> ${m ? m.nombre : c.modelo} <span class="text-xs text-[#a9add6]">${c.modelo}</span> ${aviso}
+    const aviso = m && m.unidades < c.cantidad ? `<span class="text-[#fca5a5]">solo ${m.unidades} unidades</span>` : '';
+    return `<div class="flex items-center gap-2 bg-[#334155] rounded-lg px-2 py-1">
+      <b>${c.cantidad}x</b> ${m ? m.nombre : c.modelo} <span class="text-xs text-[#64748b]">${c.modelo}</span> ${aviso}
       <button class="ml-auto text-xs underline" onclick="quitarComponente(${i})">quitar</button></div>`;
-  }).join('') : '<span class="text-xs text-[#a9add6]">Agregá al menos un componente.</span>';
+  }).join('') : '<span class="text-xs text-[#64748b]">Agregá al menos un componente.</span>';
 }
 async function crearKit() {
   if (!COMP.length) { alert('El kit debe tener al menos un componente'); return; }
@@ -341,10 +343,10 @@ async function verSaldo() {
   const r = await j('/api/alquileres/' + $('pAlq').value);
   if (r.error) { $('rPago').textContent = r.error; return; }
   const detalle = (r.detalle || []).map(d => `<div class="flex justify-between text-xs border-b py-1">
-    <span>${d.equipo} ${d.kit ? '<b class="text-[#a9add6]">(' + d.kit + ')</b>' : ''}</span>
+    <span>${d.equipo} ${d.kit ? '<b class="text-[#64748b]">(' + d.kit + ')</b>' : ''}</span>
     <span>${money(d.subtotal)}</span></div>`).join('');
   $('rPago').innerHTML = `ALQ-${r.id} · presup ${money(r.total_presupuesto)} + mora ${money(r.total_mora || 0)} − pagado ${money(r.pagado)} = <b>saldo ${money(r.saldo)}</b> (${r.estado})
-    <br><span class="text-[#bfc2e8] text-xs">Garantía: ${(r.garantias || []).map(g => g.tipo).join(', ') || '—'} · Pagos: ${(r.pagos || []).map(p => p.tipo + ' ' + money(p.monto)).join(' · ') || '—'}</span>
+    <br><span class="text-[#94a3b8] text-xs">Garantía: ${(r.garantias || []).map(g => g.tipo).join(', ') || '—'} · Pagos: ${(r.pagos || []).map(p => p.tipo + ' ' + money(p.monto)).join(' · ') || '—'}</span>
     <div class="mt-2">${detalle}</div>`;
 }
 async function pagar() {

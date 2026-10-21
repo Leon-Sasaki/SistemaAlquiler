@@ -248,14 +248,21 @@ app.get('/api/kits/:id/disponibilidad', (req, res) => { // bloqueo en cadena
 app.post('/api/kits', (req, res) => { // alta de kit
   const { codigo, nombre, descripcion, precio_dia, componentes } = req.body;
   if (!codigo || !nombre) return res.status(400).json({ error: 'codigo y nombre requeridos' });
+  if (!Array.isArray(componentes) || !componentes.length)
+    return res.status(400).json({ error: 'El kit debe tener al menos un componente' });
+  db.exec('BEGIN');
   try {
     const r = db.prepare('INSERT INTO kits (codigo,nombre,descripcion,precio_dia) VALUES (?,?,?,?)')
       .run(codigo, nombre, descripcion || '', precio_dia != null && precio_dia !== '' ? Number(precio_dia) : null);
     const kitId = r.lastInsertRowid;
-    for (const c of (componentes || []))
+    for (const c of componentes)
       db.prepare('INSERT INTO kit_items (kit_id,modelo,cantidad) VALUES (?,?,?)').run(kitId, c.modelo, Number(c.cantidad) || 1);
+    db.exec('COMMIT');
     res.json({ ok: true, id: kitId });
-  } catch (e) { res.status(409).json({ error: 'codigo de kit duplicado' }); }
+  } catch (e) {
+    db.exec('ROLLBACK');
+    res.status(409).json({ error: 'codigo de kit duplicado' });
+  }
 });
 
 app.post('/api/alquileres', (req, res) => { // HU02 (admite equipos sueltos y/o kits)
@@ -431,17 +438,26 @@ app.post('/api/clientes', (req, res) => {
 });
 
 app.post('/api/equipos', (req, res) => {
-  const { codigo, categoria_id, nombre, precio_dia, valor_reposicion } = req.body;
+  const { codigo, modelo, categoria_id, nombre, precio_dia, valor_reposicion } = req.body;
   if (!codigo || !nombre) return res.status(400).json({ error: 'codigo y nombre requeridos' });
   try {
-    const r = db.prepare('INSERT INTO equipos (codigo,categoria_id,nombre,precio_dia,valor_reposicion,estado_operativo) VALUES (?,?,?,?,?,?)')
-      .run(codigo, categoria_id || 1, nombre, precio_dia || 0, valor_reposicion || 0, 'DISPONIBLE');
+    const r = db.prepare('INSERT INTO equipos (codigo,modelo,categoria_id,nombre,precio_dia,valor_reposicion,estado_operativo) VALUES (?,?,?,?,?,?,?)')
+      .run(codigo, modelo || null, categoria_id || 1, nombre, precio_dia || 0, valor_reposicion || 0, 'DISPONIBLE');
     res.json({ ok: true, id: r.lastInsertRowid });
   } catch (e) { res.status(409).json({ error: 'código duplicado' }); }
 });
 
 app.get('/api/categorias', (req, res) => {
   res.json(db.prepare('SELECT * FROM categorias ORDER BY nombre').all());
+});
+
+// Modelos: agrupadores de unidades (base de los kits)
+app.get('/api/modelos', (req, res) => {
+  const rows = db.prepare(`SELECT modelo, MIN(nombre) nombre, COUNT(*) unidades,
+      SUM(CASE WHEN estado_operativo='DISPONIBLE' THEN 1 ELSE 0 END) libres,
+      MIN(categoria_id) categoria_id
+    FROM equipos WHERE modelo IS NOT NULL AND modelo != '' GROUP BY modelo ORDER BY modelo`).all();
+  res.json(rows);
 });
 
 // Resumen del panel: KPIs + disponibilidad por categoría + ingresos 6 meses + recientes

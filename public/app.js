@@ -3,7 +3,7 @@ const j = async (u, o) => (await fetch(u, o)).json();
 const $ = id => document.getElementById(id);
 const money = n => '$' + Number(n || 0).toLocaleString('es-AR');
 const pill = s => `<span class="pill p-${s}">${s}</span>`;
-let EQ = [], ALQ = [], CLI = [], KITS = [], FILTRO = '';
+let EQ = [], ALQ = [], CLI = [], KITS = [], MODELOS = [], FILTRO = '';
 let KITS_SEL = [];
 let EQ_SEL = [];
 let chart = null;
@@ -41,11 +41,11 @@ function openEquipo() { $('dlgEq').showModal(); }
 
 /* Carga general */
 async function load() {
-  const [eq, alq, cli, res, venc, deud, cats, kits] = await Promise.all([
+  const [eq, alq, cli, res, venc, deud, cats, kits, modelos] = await Promise.all([
     j('/api/equipos'), j('/api/alquileres'), j('/api/clientes'), j('/api/resumen'),
-    j('/api/vencimientos'), j('/api/deudores'), j('/api/categorias'), j('/api/kits')
+    j('/api/vencimientos'), j('/api/deudores'), j('/api/categorias'), j('/api/kits'), j('/api/modelos')
   ]);
-  EQ = eq; ALQ = alq; CLI = cli; KITS = kits;
+  EQ = eq; ALQ = alq; CLI = cli; KITS = kits; MODELOS = modelos;
 
   // KPIs
   $('kAct').textContent = res.activos;
@@ -296,8 +296,46 @@ async function crearCliente() {
   $('dlgCli').close(); load();
 }
 async function crearEquipo() {
-  const r = await j('/api/equipos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ codigo: $('eCod').value, nombre: $('eNom').value, categoria_id: +$('eCat').value, precio_dia: +$('ePre').value }) });
+  const r = await j('/api/equipos', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ codigo: $('eCod').value, nombre: $('eNom').value, modelo: $('eMod').value || null,
+      categoria_id: +$('eCat').value, precio_dia: +$('ePre').value }) });
   if (r.error) alert(r.error); else { $('dlgEq').close(); load(); }
+}
+
+/* ---------- Alta de kit ---------- */
+let COMP = [];
+function abrirKit() {
+  COMP = [];
+  $('kMod').innerHTML = MODELOS.map(m => `<option value="${m.modelo}">${m.nombre} · ${m.modelo} (${m.unidades} uds)</option>`).join('');
+  renderComp();
+  $('dlgKit').showModal();
+}
+function agregarComponente() {
+  const modelo = $('kMod').value, cant = Math.max(1, +$('kCant').value || 1);
+  if (!modelo) return;
+  const ex = COMP.find(c => c.modelo === modelo);
+  if (ex) ex.cantidad += cant; else COMP.push({ modelo, cantidad: cant });
+  renderComp();
+}
+function quitarComponente(i) { COMP.splice(i, 1); renderComp(); }
+function renderComp() {
+  $('kComp').innerHTML = COMP.length ? COMP.map((c, i) => {
+    const m = MODELOS.find(x => x.modelo === c.modelo);
+    const aviso = m && m.unidades < c.cantidad ? `<span class="text-red-700">solo ${m.unidades} unidades</span>` : '';
+    return `<div class="flex items-center gap-2 bg-[#e0cfa8] rounded-lg px-2 py-1">
+      <b>${c.cantidad}x</b> ${m ? m.nombre : c.modelo} <span class="text-xs text-gray-600">${c.modelo}</span> ${aviso}
+      <button class="ml-auto text-xs underline" onclick="quitarComponente(${i})">quitar</button></div>`;
+  }).join('') : '<span class="text-xs text-gray-600">Agregá al menos un componente.</span>';
+}
+async function crearKit() {
+  if (!COMP.length) { alert('El kit debe tener al menos un componente'); return; }
+  const r = await j('/api/kits', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ codigo: $('kCod').value, nombre: $('kNom').value, descripcion: $('kDesc').value,
+      precio_dia: $('kPre').value === '' ? null : +$('kPre').value, componentes: COMP }) });
+  if (r.error) { alert(r.error); return; }
+  $('dlgKit').close();
+  $('kCod').value = ''; $('kNom').value = ''; $('kDesc').value = ''; $('kPre').value = '';
+  load();
 }
 async function verSaldo() {
   const r = await j('/api/alquileres/' + $('pAlq').value);

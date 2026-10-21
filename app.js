@@ -437,6 +437,13 @@ app.post('/api/clientes', (req, res) => {
   res.json({ ok: true, id: r.lastInsertRowid });
 });
 
+// Baja logica de kit (deja de ofrecerse, no borra el historico)
+app.delete('/api/kits/:id', (req, res) => {
+  const r = db.prepare('UPDATE kits SET activo = 0 WHERE id = ?').run(req.params.id);
+  if (!r.changes) return res.status(404).json({ error: 'Kit inexistente' });
+  res.json({ ok: true });
+});
+
 app.post('/api/equipos', (req, res) => {
   const { codigo, modelo, categoria_id, nombre, precio_dia, valor_reposicion } = req.body;
   if (!codigo || !nombre) return res.status(400).json({ error: 'codigo y nombre requeridos' });

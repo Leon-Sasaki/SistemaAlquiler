@@ -40,7 +40,28 @@ function openCliente() { $('dlgCli').showModal(); }
 function openEquipo() { $('dlgEq').showModal(); }
 
 /* Carga general */
+const IDS_REQUERIDOS = ['kAct', 'kEq', 'kCash', 'kKit', 'kVen', 'chIng', 'catBars', 'tRec', 'fCat', 'eCat',
+  'dEq', 'rKit', 'rCli', 'tCli', 'tDeud', 'tEq', 'tAlq', 'tKits', 'rEqSearch', 'rEqList', 'rEqSel', 'rLineas',
+  'qEq', 'q', 'qAlq', 'dIni', 'dFin', 'mAlq', 'mPro', 'mRes', 'pAlq', 'pTipo', 'pMonto', 'rPago',
+  'rRes', 'rTot', 'rIni', 'rFin', 'rGar', 'kIni', 'kFin', 'dlgCli', 'dlgEq', 'dlgKit', 'kMod', 'kCant', 'kComp',
+  'eCod', 'eNom', 'eMod', 'ePre', 'cNom', 'cTip', 'cWsp', 'kCod', 'kNom', 'kDesc', 'kPre', 'sidebar',
+  'viewTitle', 'viewSub', 'reservaCard', 'tabsEst'];
+
 async function load() {
+  try {
+    await loadDatos();
+  } catch (e) {
+    console.error('Error cargando la aplicacion:', e);
+    const b = document.createElement('div');
+    b.className = 'fixed bottom-4 right-4 z-50 bg-[#4c1d24] text-[#fca5a5] rounded-lg p-3 text-sm max-w-md';
+    b.textContent = 'Error cargando la aplicación: ' + e.message;
+    document.body.appendChild(b);
+  }
+}
+
+async function loadDatos() {
+  const faltantes = IDS_REQUERIDOS.filter(id => !$(id));
+  if (faltantes.length) console.error('IDs faltantes en el HTML (la app se va a romper):', faltantes);
   const [eq, alq, cli, res, venc, deud, cats, kits, modelos] = await Promise.all([
     j('/api/equipos'), j('/api/alquileres'), j('/api/clientes'), j('/api/resumen'),
     j('/api/vencimientos'), j('/api/deudores'), j('/api/categorias'), j('/api/kits'), j('/api/modelos')
@@ -56,12 +77,15 @@ async function load() {
   $('kKit').textContent = kits.filter(k => k.completo).length + ' / ' + kits.length;
 
   // Chart ingresos
-  if (chart) chart.destroy();
-  chart = new Chart($('chIng'), { type: 'bar',
+  // Chart (si el CDN no carga, la app sigue funcionando)
+  try {
+    if (chart) chart.destroy();
+    chart = new Chart($('chIng'), { type: 'bar',
     data: { labels: res.ingresos.map(i => i.mes), datasets: [{ data: res.ingresos.map(i => i.total), backgroundColor: '#818cf8', borderRadius: 6 }] },
     options: { plugins: { legend: { display: false } },
       scales: { y: { beginAtZero: true, ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
                 x: { ticks: { color: '#94a3b8' }, grid: { display: false } } } } });
+  } catch (e) { console.warn('Gráfico no disponible:', e.message); }
 
   // Disponibilidad por categoría
   $('catBars').innerHTML = Object.entries(res.porCategoria).map(([k, v]) => {
@@ -77,7 +101,6 @@ async function load() {
   $('fCat').innerHTML = '<option value="">Todas</option>' + cats.map(c => `<option value="${c.nombre}">${c.nombre}</option>`).join('');
   $('eCat').innerHTML = cats.map(c => `<option value="${c.id}">${c.nombre}</option>`).join('');
   $('dEq').innerHTML = eq.map(e => `<option value="${e.id}">${e.codigo} · ${e.nombre}</option>`).join('');
-  $('rEqs').innerHTML = eq.map(e => `<option value="${e.id}">${e.codigo} · ${e.nombre} (${money(e.precio_dia)}/día) [${e.estado_operativo}]</option>`).join('');
   $('rKit').innerHTML = kits.map(k => `<option value="${k.id}">${k.codigo} · ${k.nombre} (${money(k.precio_calculado)}/día)</option>`).join('');
   renderEq();
   renderKits();
@@ -147,8 +170,13 @@ function renderKits() {
         : '<span class="text-[#94a3b8]">sin rango</span>';
       return `<tr class="border-t"><td class="py-2"><b>${k.nombre}</b><br><span class="text-xs text-[#94a3b8]">${k.codigo}</span></td>
         <td class="text-xs">${desglose}</td><td class="text-right">${money(k.precio_calculado)}</td><td>${estado}</td>
-        <td class="text-right"><button class="text-xs underline" onclick="conflictosKit(${k.id})">Conflictos</button></td></tr>`;
+        <td class="text-right whitespace-nowrap"><button class="text-xs underline mr-2" onclick="conflictosKit(${k.id})">Conflictos</button><button class="text-xs underline" onclick="darDeBajaKit(${k.id})">Baja</button></td></tr>`;
     }).join('') + '</table>';
+}
+async function darDeBajaKit(id) {
+  if (!confirm('Dar de baja el kit? Deja de ofrecerse pero se conserva el histórico.')) return;
+  const r = await j('/api/kits/' + id, { method: 'DELETE' });
+  if (r.error) alert(r.error); else load();
 }
 async function verKits() {
   const ini = $('kIni').value, fin = $('kFin').value;

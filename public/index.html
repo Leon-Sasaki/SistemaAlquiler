@@ -17,8 +17,12 @@
 .tabbtn{border:1px solid #334155;background:#334155;border-radius:9999px;padding:6px 12px;font-size:12px;color:#e2e8f0}
 .tabbtn.active{background:#6366f1;color:#fff;border-color:#6366f1}
 .bar{height:8px;background:#334155;border-radius:9999px;overflow:hidden}.bar>i{display:block;height:100%;background:#818cf8}
-dialog{background:#1e293b;border:1px solid #334155;color:#f1f5f9}
+dialog{background:#1e293b;border:1px solid #334155;color:#f1f5f9;margin:auto !important}
 dialog::backdrop{background:rgba(0,0,0,.6)}
+.campo-falta{border-color:#fca5a5 !important;box-shadow:0 0 0 2px rgba(252,165,165,.25)}
+.err{display:none;color:#fca5a5;font-size:13px;line-height:1.35;margin:0 0 12px;padding:8px 10px;border-radius:8px;background:#4c1d24;border:1px solid #7f1d1d}
+.err:not(:empty){display:block}
+.paso{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:9999px;background:#4f46e5;color:#fff;font-size:11px;font-weight:700;margin-right:6px;vertical-align:1px}
 input,select,textarea{background:#0f172a !important;border-color:#334155 !important;color:#f1f5f9}
 input::placeholder{color:#64748b}
 ::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-track{background:#0f172a}
@@ -108,6 +112,7 @@ input::placeholder{color:#64748b}
             <span class="text-xs text-[#94a3b8] self-center">Tip Excel superado: el estado ya no es texto libre (“le falta la perilla”), es un valor cerrado + revisión en devolución.</span>
           </div>
           <div id="tEq" class="overflow-x-auto"></div>
+          <div id="pEq"></div>
         </div>
         <div class="bg-[#1e293b] rounded-xl ring-1 ring-white/5 p-4">
           <div class="font-medium mb-1">Verificar disponibilidad real</div>
@@ -131,6 +136,7 @@ input::placeholder{color:#64748b}
             </div>
           </div>
           <div id="tKits" class="mt-3"></div>
+          <div id="pKits"></div>
         </div>
       </section>
 
@@ -146,42 +152,79 @@ input::placeholder{color:#64748b}
             <span id="nAlq" class="text-xs text-[#94a3b8]"></span>
           </div>
           <div id="tAlq" class="overflow-x-auto"></div>
+          <div id="pAlq"></div>
         </div>
         <div class="bg-[#1e293b] rounded-xl ring-1 ring-white/5 p-4" id="reservaCard">
-          <div class="font-medium mb-1">Nuevo alquiler / presupuesto</div>
-          <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-2 mb-2">
-            <label class="text-sm">Cliente<select id="rCli" class="border rounded-lg h-9 text-sm px-2 w-full mt-1"></select></label>
-            <label class="text-sm">Retiro<input id="rIni" type="date" class="border rounded-lg h-9 text-sm px-2 w-full mt-1"></label>
-            <label class="text-sm">Devolución<input id="rFin" type="date" class="border rounded-lg h-9 text-sm px-2 w-full mt-1"></label>
-            <label class="text-sm">Garantía<select id="rGar" class="border rounded-lg h-9 text-sm px-2 w-full mt-1"><option>DNI_RETENIDO</option><option>PAGARE</option><option>DEPOSITO</option><option>OTRO</option></select></label>
+          <div class="mb-3">
+            <div class="font-medium text-base">Nuevo alquiler / presupuesto</div>
+            <div class="text-sm text-[#94a3b8]">Tres pasos: cliente y fechas, qué alquilás, y confirmación.</div>
           </div>
 
-          <!-- FLUJO PRINCIPAL: KITS -->
+          <!-- PASO 1 -->
           <div class="border rounded-lg p-3 mb-2" style="background:#26324a">
+            <div class="font-medium mb-2"><span class="paso">1</span> Cliente y fechas</div>
+            <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-2">
+              <label class="text-sm">Cliente<select id="rCli" class="border rounded-lg h-9 text-sm px-2 w-full mt-1"></select></label>
+              <label class="text-sm">Retiro<input id="rIni" type="date" class="border rounded-lg h-9 text-sm px-2 w-full mt-1"></label>
+              <label class="text-sm">Devolución<input id="rFin" type="date" class="border rounded-lg h-9 text-sm px-2 w-full mt-1"></label>
+              <label class="text-sm">Garantía<select id="rGar" class="border rounded-lg h-9 text-sm px-2 w-full mt-1"><option>DNI_RETENIDO</option><option>PAGARE</option><option>DEPOSITO</option><option>OTRO</option></select></label>
+            </div>
+            <div id="rFechas" class="text-xs text-[#94a3b8] mt-2"></div>
+          </div>
+
+          <!-- PASO 2 -->
+          <div class="border rounded-lg p-3 mb-2" style="background:#26324a">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+              <div class="font-medium"><span class="paso">2</span> Qué vas a alquilar</div>
+              <div class="text-xs text-[#94a3b8]">Podés combinar kits y equipos sueltos en la misma reserva.</div>
+            </div>
+
+            <div class="rounded-lg p-2 mb-2" style="background:#1e293b">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <div class="text-sm font-medium">Kit completo <span class="text-xs font-normal text-[#64748b]">(se reserva todo o nada)</span></div>
+                <div class="flex flex-wrap gap-2 items-center">
+                  <select id="rKit" class="border rounded-lg h-9 text-sm px-2 max-w-full sm:max-w-[22rem]"></select>
+                  <input id="rKitCant" type="number" min="1" max="20" value="1" title="Cantidad de kits" class="border rounded-lg h-9 px-2 w-16">
+                  <button class="bg-[#4f46e5] text-white rounded-lg h-9 px-3 text-sm" onclick="agregarKit()">+ Agregar</button>
+                </div>
+              </div>
+              <div id="rKitDesglose" class="text-xs text-[#94a3b8] mt-1"></div>
+            </div>
+
+            <div class="rounded-lg p-2" style="background:#1e293b">
+              <div class="flex flex-wrap items-center justify-between gap-2 mb-1">
+                <div class="text-sm font-medium">Equipos sueltos <span class="text-xs font-normal text-[#64748b]">(opcional)</span></div>
+                <div id="rEqCount" class="text-xs text-[#94a3b8]"></div>
+              </div>
+              <div class="relative">
+                <i data-lucide="search" class="size-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-[#94a3b8]"></i>
+                <input id="rEqSearch" placeholder="Buscar equipo por nombre, código o categoría..." class="border rounded-lg h-9 text-sm pl-8 w-full">
+              </div>
+              <div id="rEqList" class="border rounded-lg mt-1 max-h-56 overflow-y-auto text-sm"></div>
+              <div class="text-xs text-[#64748b] mt-1">Tocá un equipo libre para sumarlo; volvé a tocarlo para quitarlo.</div>
+            </div>
+          </div>
+
+          <!-- PASO 3 -->
+          <div class="border rounded-lg p-3" style="background:#26324a">
             <div class="flex flex-wrap items-center justify-between gap-2">
-              <div class="font-medium">1. Kit a alquilar <span class="text-xs font-normal text-[#64748b]">(comercialización por kit: todo o nada)</span></div>
-              <div class="flex gap-2 items-center">
-                <select id="rKit" class="border rounded-lg h-9 text-sm px-2"></select>
-                <input id="rKitCant" type="number" min="1" value="1" class="border rounded-lg h-9 px-2 w-16">
-                <button class="bg-[#4f46e5] text-white rounded-lg h-9 px-3 text-sm" onclick="agregarKit()">+ Agregar</button>
+              <div class="font-medium"><span class="paso">3</span> Resumen y confirmación</div>
+              <div class="flex items-center gap-3">
+                <span id="rDias" class="text-xs text-[#94a3b8]"></span>
+                <button class="text-xs underline text-[#94a3b8]" onclick="limpiarReserva()">Limpiar selección</button>
               </div>
             </div>
-            <div id="rKitDesglose" class="text-xs text-[#64748b] mt-1"></div>
-            <div id="rLineas" class="mt-2 flex flex-col gap-1 text-sm"></div>
+            <div class="text-xs font-medium text-[#94a3b8] mt-2">Kits</div>
+            <div id="rLineas" class="mt-1 flex flex-col gap-1 text-sm"></div>
+            <div class="text-xs font-medium text-[#94a3b8] mt-2">Equipos sueltos</div>
+            <div id="rEqSel" class="mt-1 flex flex-wrap gap-1 text-sm"></div>
+            <div class="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t">
+              <button class="bg-[#4f46e5] text-white text-sm rounded-lg h-9 px-4" onclick="reservar()">Confirmar reserva</button>
+              <span id="rRes" class="text-sm"></span>
+              <span id="rTot" class="text-sm font-semibold ml-auto"></span>
+            </div>
           </div>
 
-          <!-- EXCEPCION: EQUIPOS SUELTOS -->
-          <details class="border rounded-lg p-3 mb-2">
-            <summary class="text-sm cursor-pointer font-medium">2. Equipos sueltos <span class="text-xs font-normal text-[#64748b]">(excepción — la venta normal es por kit)</span></summary>
-            <div class="relative mt-2">
-              <i data-lucide="search" class="size-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-[#94a3b8]"></i>
-              <input id="rEqSearch" placeholder="Buscar por nombre, código o categoría..." class="border rounded-lg h-9 text-sm pl-8 w-full">
-            </div>
-            <div id="rEqList" class="border rounded-lg mt-1 max-h-44 overflow-y-auto text-sm"></div>
-            <div id="rEqSel" class="mt-2 flex flex-wrap gap-1"></div>
-          </details>
-
-          <div class="flex items-center gap-2"><button class="bg-[#4f46e5] text-white text-sm rounded-lg h-9 px-4" onclick="reservar()">Reservar</button><span id="rRes" class="text-sm"></span><span id="rTot" class="text-sm font-semibold ml-auto"></span></div>
           <hr class="my-3">
           <div class="font-medium mb-2">Retiro · Devolución · Prórroga</div>
           <div class="flex flex-wrap gap-2 items-center text-sm">
@@ -199,12 +242,12 @@ input::placeholder{color:#64748b}
       <!-- ===== CLIENTES / COBRANZA ===== -->
       <section id="view-clientes" class="hidden flex-col gap-4">
         <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
-          <div class="bg-[#1e293b] rounded-xl ring-1 ring-white/5 p-4"><div class="flex items-center justify-between mb-2"><div><div class="font-medium text-base">Clientes</div><div class="text-sm text-[#94a3b8]">Directorio de productoras, agencias e independientes</div></div><button class="bg-[#4f46e5] text-white text-sm rounded-lg h-8 px-3" onclick="openCliente()">Nuevo cliente</button></div><div id="tCli" class="overflow-x-auto"></div></div>
+          <div class="bg-[#1e293b] rounded-xl ring-1 ring-white/5 p-4"><div class="flex items-center justify-between mb-2"><div><div class="font-medium text-base">Clientes</div><div class="text-sm text-[#94a3b8]">Directorio de productoras, agencias e independientes</div></div><button class="bg-[#4f46e5] text-white text-sm rounded-lg h-8 px-3" onclick="openCliente()">Nuevo cliente</button></div><div id="tCli" class="overflow-x-auto"></div><div id="pCli"></div></div>
           <div class="bg-[#1e293b] rounded-xl ring-1 ring-white/5 p-4"><div class="font-medium">Cobranza, garantías y mora</div><div class="text-sm text-[#94a3b8] mb-2">Seña, saldo y recargo 1.5x/día por mora (R5). Saldo = presupuesto + mora − pagado.</div>
-            <div class="flex gap-2 mb-2"><input id="pAlq" placeholder="ID alquiler" class="border rounded-lg h-9 px-2"><button class="border rounded-lg h-9 px-3 text-sm" onclick="verSaldo()">Ver saldo</button></div>
+            <div class="flex gap-2 mb-2"><input id="pAlqId" placeholder="ID alquiler" class="border rounded-lg h-9 px-2"><button class="border rounded-lg h-9 px-3 text-sm" onclick="verSaldo()">Ver saldo</button></div>
             <div class="flex gap-2 mb-2"><select id="pTipo" class="border rounded-lg h-9 text-sm px-2"><option>SENA</option><option>SALDO</option><option>RECARGO_MORA</option></select><input id="pMonto" type="number" placeholder="Monto $" class="border rounded-lg h-9 px-2"><button class="bg-[#4f46e5] text-white text-sm rounded-lg h-9 px-4" onclick="pagar()">Cobrar</button></div>
             <div id="rPago" class="text-sm"></div>
-            <div class="font-medium mt-4 mb-1">Deudores a fin de mes</div><div id="tDeud" class="overflow-x-auto"></div>
+            <div class="font-medium mt-4 mb-1">Deudores a fin de mes</div><div id="tDeud" class="overflow-x-auto"></div><div id="pDeud"></div>
           </div>
         </div>
       </section>
@@ -213,34 +256,39 @@ input::placeholder{color:#64748b}
 </div>
 
 <!-- Modales -->
-<dialog id="dlgCli" class="rounded-xl p-5 w-96"><h3 class="font-medium mb-2">Nuevo cliente</h3>
-<input id="cNom" placeholder="Nombre / empresa" class="border rounded-lg h-9 px-2 w-full mb-2">
+<dialog id="dlgCli" class="m-auto rounded-xl p-5 w-96"><h3 class="font-medium mb-2">Nuevo cliente</h3>
+<div id="cErr" class="err" role="alert"></div>
+<input id="cNom" placeholder="Nombre / empresa *" class="border rounded-lg h-9 px-2 w-full mb-2">
 <select id="cTip" class="border rounded-lg h-9 px-2 w-full mb-2"><option>PRODUCTORA</option><option>AGENCIA</option><option>SONIDISTA</option><option>INDEPENDIENTE</option></select>
 <input id="cWsp" placeholder="WhatsApp" class="border rounded-lg h-9 px-2 w-full mb-2">
 <div class="flex gap-2 justify-end"><button onclick="dlgCli.close()">Cerrar</button><button class="bg-[#4f46e5] text-white rounded-lg px-3 h-9 text-sm" onclick="crearCliente()">Guardar</button></div></dialog>
 
-<dialog id="dlgEq" class="rounded-xl p-5 w-96"><h3 class="font-medium mb-2">Añadir equipo</h3>
-<input id="eCod" placeholder="Código (ej CAM-SONY-A7-02)" class="border rounded-lg h-9 px-2 w-full mb-2">
-<input id="eNom" placeholder="Nombre" class="border rounded-lg h-9 px-2 w-full mb-2">
+<dialog id="dlgEq" class="m-auto rounded-xl p-5 w-96"><h3 class="font-medium mb-2">Añadir equipo</h3>
+<div id="eErr" class="err" role="alert"></div>
+<input id="eCod" placeholder="Código (ej CAM-SONY-A7-02) *" class="border rounded-lg h-9 px-2 w-full mb-2">
+<input id="eNom" placeholder="Nombre *" class="border rounded-lg h-9 px-2 w-full mb-2">
 <label class="text-xs text-[#64748b] block mb-1">Modelo (agrupa unidades del mismo producto; sin modelo el equipo no puede entrar en un kit)</label>
 <input id="eMod" placeholder="Modelo (ej CAM-SONY-A7)" class="border rounded-lg h-9 px-2 w-full mb-2">
 <select id="eCat" class="border rounded-lg h-9 px-2 w-full mb-2"></select>
 <input id="ePre" type="number" placeholder="Precio por día $" class="border rounded-lg h-9 px-2 w-full mb-2">
 <div class="flex gap-2 justify-end"><button onclick="dlgEq.close()">Cerrar</button><button class="bg-[#4f46e5] text-white rounded-lg px-3 h-9 text-sm" onclick="crearEquipo()">Guardar</button></div></dialog>
 
-<dialog id="dlgKit" class="rounded-xl p-5 w-[28rem]"><h3 class="font-medium mb-2">Nuevo kit promocional</h3>
-<input id="kCod" placeholder="Código (ej KIT-CINE)" class="border rounded-lg h-9 px-2 w-full mb-2">
-<input id="kNom" placeholder="Nombre (ej Kit Cine)" class="border rounded-lg h-9 px-2 w-full mb-2">
-<input id="kDesc" placeholder="Descripción" class="border rounded-lg h-9 px-2 w-full mb-2">
+<dialog id="dlgKit" class="m-auto rounded-xl p-6 w-[36rem] max-w-[95vw] max-h-[90vh] overflow-y-auto">
+<h3 class="font-medium mb-1">Nuevo kit promocional</h3>
+<div class="text-xs text-[#94a3b8] mb-3">Los campos con <span class="text-[#fca5a5]">*</span> son obligatorios.</div>
+<div id="kErr" class="err" role="alert"></div>
+<input id="kCod" placeholder="Código (ej KIT-CINE) *" class="border rounded-lg h-9 px-2 w-full mb-2">
+<input id="kNom" placeholder="Nombre (ej Kit Cine) *" class="border rounded-lg h-9 px-2 w-full mb-2">
+<input id="kDesc" placeholder="Descripción (opcional)" class="border rounded-lg h-9 px-2 w-full mb-2">
 <label class="text-xs text-[#64748b] block mb-1">Precio propio por día (vacío = suma de los componentes)</label>
 <input id="kPre" type="number" placeholder="Ej 29000" class="border rounded-lg h-9 px-2 w-full mb-2">
-<div class="text-sm font-medium mt-2 mb-1">Componentes</div>
+<div class="text-sm font-medium mt-2 mb-1">Componentes <span class="text-[#fca5a5]">*</span></div>
 <div class="flex gap-2">
   <select id="kMod" class="border rounded-lg h-9 text-sm px-2 flex-1"></select>
   <input id="kCant" type="number" min="1" value="1" class="border rounded-lg h-9 px-2 w-16">
   <button class="border rounded-lg h-9 px-3 text-sm" onclick="agregarComponente()">+</button>
 </div>
-<div id="kComp" class="mt-2 flex flex-col gap-1 text-sm"></div>
+<div id="kComp" class="mt-2 flex flex-col gap-1 text-sm p-1 rounded-lg"></div>
 <div class="flex gap-2 justify-end mt-4"><button onclick="dlgKit.close()">Cerrar</button><button class="bg-[#4f46e5] text-white rounded-lg px-3 h-9 text-sm" onclick="crearKit()">Guardar kit</button></div></dialog>
 
 <script src="app.js"></script>

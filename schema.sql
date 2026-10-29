@@ -95,3 +95,14 @@ CREATE TABLE IF NOT EXISTS movimientos (
   estado_recibido TEXT DEFAULT '',
   observacion TEXT DEFAULT ''
 );
+
+-- Índices para listados paginados y chequeos de solape (R1)
+CREATE INDEX IF NOT EXISTS idx_detalle_equipo ON detalle_alquiler(equipo_id);
+CREATE INDEX IF NOT EXISTS idx_detalle_alquiler ON detalle_alquiler(alquiler_id);
+CREATE INDEX IF NOT EXISTS idx_alquileres_cliente ON alquileres(cliente_id);
+CREATE INDEX IF NOT EXISTS idx_alquileres_estado_fin ON alquileres(estado, fecha_devolucion_prevista);
+CREATE INDEX IF NOT EXISTS idx_pagos_alquiler ON pagos(alquiler_id);
+CREATE INDEX IF NOT EXISTS idx_pagos_fecha ON pagos(fecha);
+CREATE INDEX IF NOT EXISTS idx_movimientos_equipo ON movimientos(equipo_id);
+CREATE INDEX IF NOT EXISTS idx_equipos_modelo ON equipos(modelo);
+CREATE INDEX IF NOT EXISTS idx_clientes_nombre ON clientes(nombre);

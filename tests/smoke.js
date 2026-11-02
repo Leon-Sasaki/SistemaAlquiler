@@ -39,8 +39,9 @@ const esperar = ms => new Promise(r => setTimeout(r, ms));
   window.lucide = { createIcons: () => {} };
   window.HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); };
   window.HTMLDialogElement.prototype.close = function () { this.removeAttribute('open'); };
+  window.HTMLInputElement.prototype.showPicker = function () { this.dataset.calendarioAbierto = '1'; };
 
-  window.eval(appjs + '\nwindow.__state = () => ({ MODELOS, KITS, KITS_TODOS, COMP, EQ_SEL, KITS_SEL, ALQ, EQ, CLI, PAG, INV });');
+  window.eval(appjs + '\nwindow.__state = () => ({ MODELOS, KITS, KITS_TODOS, COMP, EQ_SEL, KITS_SEL, ALQ, ALQ_ACT, EQ, CLI, PAG, INV });');
   await esperar(2000);
   const d = window.document;
   const st = () => window.__state();
@@ -51,6 +52,16 @@ const esperar = ms => new Promise(r => setTimeout(r, ms));
   check(st().KITS.length > 0, `kits cargados en la página (${st().KITS.length})`);
   check(st().KITS_TODOS.length === 2, `catálogo completo de kits para selectores (${st().KITS_TODOS.length})`);
   check(st().EQ.length === 12 && st().INV.length === 10, `equipos: catálogo 12 / página 10 (${st().EQ.length}/${st().INV.length})`);
+
+  console.log('--- selector de fechas ---');
+  const fechas = [...d.querySelectorAll('input[type="date"]')];
+  check(fechas.length >= 6, `hay ${fechas.length} campos de fecha con calendario`);
+  fechas.forEach(el => {
+    delete el.dataset.calendarioAbierto;
+    el.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  });
+  check(fechas.every(el => el.dataset.calendarioAbierto === '1'),
+    'cualquier clic en el campo de fecha abre el calendario');
 
   console.log('--- paginación ---');
   check(st().PAG.equipos.total === 12 && st().PAG.equipos.pages === 2, 'metadata de equipos: 12 en 2 páginas');
@@ -206,6 +217,58 @@ const esperar = ms => new Promise(r => setTimeout(r, ms));
     const rr = await fetch(BASE + '/api/kits/' + creado.id, { method: 'DELETE' });
     check(rr.ok, 'baja lógica de kit');
   }
+
+  console.log('--- avisos en pantalla (sin alert) ---');
+  check(!/\balert\s*\(/.test(appjs) && !/\balert\s*\(/.test(html),
+    'la interfaz no usa alert() del navegador');
+  check(!!d.getElementById('toasts'), 'contenedor de avisos en pantalla presente');
+  window.eval("notificar('Prueba de aviso en pantalla', 'error')");
+  const toast = d.querySelector('#toasts .toast');
+  check(!!toast && /Prueba de aviso/.test(toast.textContent) && toast.getAttribute('role') === 'alert',
+    'notificar() muestra el mensaje dentro de la interfaz');
+  if (toast) toast.remove();
+
+  console.log('--- alquileres actuales: modal y paginado ---');
+  for (let i = 2; i <= 6; i++) {
+    const rr = await fetch(BASE + '/api/alquileres', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cliente_id: 1, inicio: '2033-03-01', fin: '2033-03-02', equipo_ids: [i] })
+    });
+    check(rr.ok, 'reserva extra para paginar el modal (equipo ' + i + ')');
+  }
+  await window.eval('abrirAlqActuales()');
+  await esperar(700);
+  check(d.getElementById('dlgAlqAct').hasAttribute('open'), 'modal de alquileres actuales abierto');
+  check(/m-auto/.test(d.getElementById('dlgAlqAct').className) &&
+    /44rem/.test(d.getElementById('dlgAlqAct').className),
+    'modal de alquileres actuales centrado y amplio (44rem)');
+  check(st().PAG.actuales.total === 6, 'alquileres actuales: 6 registros');
+  check(st().ALQ_ACT.length === 5 && st().PAG.actuales.pages === 2,
+    'página 1 del modal: 5 de 6 en 2 páginas');
+  check(/1–5 de 6/.test(d.getElementById('pAlqAct').textContent), 'paginador del modal: 1–5 de 6');
+  check(d.getElementById('tAlqAct').querySelectorAll('tr').length === 6,
+    'tabla del modal: encabezado + 5 filas');
+  await window.eval("irPagina('actuales', 2)");
+  await esperar(700);
+  check(st().ALQ_ACT.length === 1 && st().PAG.actuales.page === 2,
+    'página 2 del modal trae el alquiler restante');
+  check(/6–6 de 6/.test(d.getElementById('pAlqAct').textContent), 'paginador del modal: 6–6 de 6');
+  const idRestante = st().ALQ_ACT[0].id;
+  window.eval('operarAlqDesdeModal(' + idRestante + ')');
+  check(!d.getElementById('dlgAlqAct').hasAttribute('open'), 'Operar cierra el modal de alquileres actuales');
+  check(d.getElementById('dlgOperar').hasAttribute('open'), 'Operar abre el modal de retiro/devolución/prórroga');
+  check(d.getElementById('mAlq').value === String(idRestante),
+    'Operar carga el alquiler en el formulario de operaciones');
+  check(d.getElementById('mAlq').closest('dialog')?.id === 'dlgOperar',
+    'retiro/devolución/prórroga viven dentro del modal, no en la página');
+  d.getElementById('dlgOperar').close();
+  window.eval('abrirOperar()');
+  check(d.getElementById('dlgOperar').hasAttribute('open'),
+    'el botón Retiro / Devolución / Prórroga abre el modal');
+  check(d.getElementById('mPro').closest('dialog')?.id === 'dlgOperar' &&
+    d.getElementById('mRes').closest('dialog')?.id === 'dlgOperar',
+    'fecha de prórroga y mensajes de resultado están dentro del modal');
+  d.getElementById('dlgOperar').close();
 
   console.log(fallos === 0 ? '\nTODOS LOS CHECKS OK' : `\n${fallos} CHECK(S) FALLARON`);
   server.close();

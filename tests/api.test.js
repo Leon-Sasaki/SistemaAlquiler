@@ -210,6 +210,13 @@ async function req(method, url, body, { raw = false } = {}) {
   check(r.body.paginacion.total === 1, 'búsqueda por cliente (1)', r.body.paginacion);
   r = await req('GET', '/api/alquileres?q=sony');
   check(r.body.paginacion.total === 1, 'búsqueda por equipo (1)', r.body.paginacion);
+  r = await req('GET', '/api/alquileres?activos=1');
+  check(r.status === 200 && r.body.paginacion.total === 1 && r.body.items[0].estado === 'RESERVADO',
+    'filtro activos=1: solo reservados/activos/vencidos', r.body.paginacion);
+  r = await req('GET', '/api/alquileres?activos=1&estado=RESERVADO');
+  check(r.status === 400, 'activos=1 combinado con estado → 400', r.body);
+  r = await req('GET', '/api/alquileres?activos=2');
+  check(r.status === 400, 'activos inválido → 400', r.body);
 
   r = await req('GET', '/api/alquileres/' + alqId);
   check(r.status === 200 && r.body.saldo === 45000 && r.body.garantias.length === 1,

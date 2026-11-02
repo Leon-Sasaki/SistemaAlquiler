@@ -23,7 +23,15 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 .err{display:none;color:#fca5a5;font-size:13px;line-height:1.35;margin:0 0 12px;padding:8px 10px;border-radius:8px;background:#4c1d24;border:1px solid #7f1d1d}
 .err:not(:empty){display:block}
 .paso{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:9999px;background:#4f46e5;color:#fff;font-size:11px;font-weight:700;margin-right:6px;vertical-align:1px}
+#toasts{position:fixed;right:16px;bottom:16px;z-index:80;display:flex;flex-direction:column;gap:8px;max-width:min(28rem,92vw)}
+.toast{display:block;padding:10px 12px;border-radius:10px;font-size:13px;line-height:1.4;border:1px solid;box-shadow:0 10px 25px rgba(0,0,0,.35);white-space:pre-line;max-height:50vh;overflow:auto;cursor:pointer;animation:toastIn .18s ease-out}
+.toast-error{background:#4c1d24;color:#fca5a5;border-color:#7f1d1d}
+.toast-ok{background:#143d2b;color:#6ee7b7;border-color:#065f46}
+.toast-info{background:#17395c;color:#7dd3fc;border-color:#1e40af}
+@keyframes toastIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 input,select,textarea{background:#0f172a !important;border-color:#334155 !important;color:#f1f5f9}
+input[type="date"]{cursor:pointer;color-scheme:dark}
+input[type="date"]::-webkit-calendar-picker-indicator{width:20px;height:20px;padding:3px;margin-right:-3px;cursor:pointer;opacity:.9}
 input::placeholder{color:#64748b}
 ::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-track{background:#0f172a}
 ::-webkit-scrollbar-thumb{background:#334155;border-radius:6px}::-webkit-scrollbar-thumb:hover{background:#475569}
@@ -46,8 +54,8 @@ input::placeholder{color:#64748b}
       <button class="navbtn" data-view="clientes"><i data-lucide="users" class="size-4"></i>Clientes</button>
     </nav>
     <nav class="p-2 mt-auto flex flex-col gap-0.5">
-      <button class="navbtn" onclick="alert('Configuración fuera del MVP')"><i data-lucide="settings" class="size-4"></i>Configuración</button>
-      <button class="navbtn" onclick="alert('Ayuda: ver README.md y docs/')"><i data-lucide="life-buoy" class="size-4"></i>Ayuda</button>
+      <button class="navbtn" onclick="notificar('Configuración fuera del MVP', 'info')"><i data-lucide="settings" class="size-4"></i>Configuración</button>
+      <button class="navbtn" onclick="notificar('Ayuda: ver README.md y docs/', 'info')"><i data-lucide="life-buoy" class="size-4"></i>Ayuda</button>
     </nav>
     <div class="p-3 border-t flex items-center gap-2.5">
       <div class="size-8 rounded-full bg-[#334155] flex items-center justify-center text-xs font-semibold">OP</div>
@@ -225,16 +233,15 @@ input::placeholder{color:#64748b}
             </div>
           </div>
 
-          <hr class="my-3">
-          <div class="font-medium mb-2">Retiro · Devolución · Prórroga</div>
-          <div class="flex flex-wrap gap-2 items-center text-sm">
-            <input id="mAlq" placeholder="ID (ej 1)" class="border rounded-lg h-9 px-2 w-28">
-            <button class="border rounded-lg h-9 px-3" onclick="retiro()">Check-out (retiro)</button>
-            <button class="border rounded-lg h-9 px-3" onclick="devol()">Check-in OK</button>
-            <button class="border rounded-lg h-9 px-3" onclick="marcarDanado()">Check-in dañado</button>
-            <input id="mPro" type="date" class="border rounded-lg h-9 px-2" title="Nueva fecha de devolución">
-            <button class="border rounded-lg h-9 px-3" onclick="prorroga()">Prórroga (R6)</button>
-            <span id="mRes" class="text-sm"></span>
+        </div>
+        <div class="bg-[#1e293b] rounded-xl ring-1 ring-white/5 p-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div class="font-medium text-base">Operaciones de alquiler</div>
+            <div class="text-sm text-[#94a3b8]">Retiro, devolución y prórroga en un modal · alquileres actuales con paginado.</div>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button class="bg-[#4f46e5] text-white text-sm rounded-lg h-9 px-4" onclick="abrirOperar()">Retiro / Devolución / Prórroga</button>
+            <button class="border rounded-lg h-9 px-4 text-sm" onclick="abrirAlqActuales()">Ver alquileres actuales</button>
           </div>
         </div>
       </section>
@@ -290,6 +297,36 @@ input::placeholder{color:#64748b}
 </div>
 <div id="kComp" class="mt-2 flex flex-col gap-1 text-sm p-1 rounded-lg"></div>
 <div class="flex gap-2 justify-end mt-4"><button onclick="dlgKit.close()">Cerrar</button><button class="bg-[#4f46e5] text-white rounded-lg px-3 h-9 text-sm" onclick="crearKit()">Guardar kit</button></div></dialog>
+
+<dialog id="dlgOperar" class="m-auto rounded-xl p-6 w-[36rem] max-w-[95vw] max-h-[90vh] overflow-y-auto">
+<h3 class="font-medium mb-1">Retiro · Devolución · Prórroga</h3>
+<div class="text-xs text-[#94a3b8] mb-3">Escribí el ID del alquiler o abrí uno desde <b>Alquileres actuales</b> con el botón Operar.</div>
+<label class="text-xs text-[#64748b] block mb-1">ID del alquiler</label>
+<input id="mAlq" placeholder="Ej 1" class="border rounded-lg h-9 px-2 w-full mb-3">
+<div class="flex flex-wrap gap-2 items-center text-sm">
+  <button class="border rounded-lg h-9 px-3" onclick="retiro()">Check-out (retiro)</button>
+  <button class="border rounded-lg h-9 px-3" onclick="devol()">Check-in OK</button>
+  <button class="border rounded-lg h-9 px-3" onclick="marcarDanado()">Check-in dañado</button>
+</div>
+<div class="mt-3">
+  <label class="text-xs text-[#64748b] block mb-1">Prórroga: nueva fecha de devolución</label>
+  <div class="flex flex-wrap gap-2 items-center">
+    <input id="mPro" type="date" class="border rounded-lg h-9 px-2">
+    <button class="border rounded-lg h-9 px-3 text-sm" onclick="prorroga()">Prórroga (R6)</button>
+  </div>
+</div>
+<div id="mRes" class="text-sm mt-3"></div>
+<div class="flex justify-end mt-4"><button class="border rounded-lg px-3 h-9 text-sm" onclick="dlgOperar.close()">Cerrar</button></div></dialog>
+
+<dialog id="dlgAlqAct" class="m-auto rounded-xl p-6 w-[44rem] max-w-[95vw] max-h-[90vh] overflow-y-auto">
+<h3 class="font-medium mb-1">Alquileres actuales</h3>
+<div class="text-xs text-[#94a3b8] mb-3">Reservados, activos y vencidos · ordenados del más reciente al más antiguo.</div>
+<div id="alqActErr" class="err" role="alert"></div>
+<div id="tAlqAct" class="overflow-x-auto"></div>
+<div id="pAlqAct"></div>
+<div class="flex justify-end mt-4"><button class="border rounded-lg px-3 h-9 text-sm" onclick="dlgAlqAct.close()">Cerrar</button></div></dialog>
+
+<div id="toasts" aria-live="polite"></div>
 
 <script src="app.js"></script>
 </body>

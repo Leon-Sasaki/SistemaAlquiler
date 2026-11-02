@@ -57,6 +57,8 @@ migrar();
 // --- Catálogos cerrados (se usan también en las validaciones) ---
 const ESTADOS_EQUIPO = ['DISPONIBLE', 'ALQUILADO', 'MANTENIMIENTO', 'DANADO', 'BAJA'];
 const ESTADOS_ALQUILER = ['PRESUPUESTO', 'RESERVADO', 'ACTIVO', 'VENCIDO', 'DEVUELTO', 'CANCELADO'];
+// Alquileres "actuales": los que todavía ocupan equipos o están pendientes de devolución.
+const ESTADOS_ACTIVOS = ['RESERVADO', 'ACTIVO', 'VENCIDO'];
 const TIPOS_PAGO = ['SENA', 'SALDO', 'RECARGO_MORA'];
 const MEDIOS_PAGO = ['EFECTIVO', 'TRANSFERENCIA', 'TARJETA', 'MERCADO_PAGO', 'OTRO'];
 const TIPOS_GARANTIA = ['PAGARE', 'DNI_RETENIDO', 'DEPOSITO', 'OTRO'];
@@ -306,10 +308,16 @@ app.get('/api/alquileres', (req, res) => {
   const { page, limit, offset } = paginacion(req);
   const q = texto(req.query.q, 'q', { requerido: false, defecto: '', max: 80 });
   const estado = opcion(req.query.estado, 'estado', ESTADOS_ALQUILER, { requerido: false, defecto: '' });
+  const activos = opcion(req.query.activos, 'activos', ['0', '1'], { requerido: false, defecto: '0' });
+  if (activos === '1' && estado)
+    throw new ErrorValidacion('activos=1 no se puede combinar con el parámetro estado');
 
   const donde = [];
   const params = [];
-  if (estado) { donde.push('a.estado = ?'); params.push(estado); }
+  if (activos === '1') {
+    donde.push(`a.estado IN (${ESTADOS_ACTIVOS.map(() => '?').join(',')})`);
+    params.push(...ESTADOS_ACTIVOS);
+  } else if (estado) { donde.push('a.estado = ?'); params.push(estado); }
   if (q) {
     const p = patronLike(q);
     const soloId = /^ALQ-?(\d+)$/i.exec(q);

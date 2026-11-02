@@ -26,16 +26,24 @@ npm test
 Corre **dos suites sin necesidad de levantar el servidor** (cada una crea su propia base `:memory:`
 y escucha en un puerto efímero):
 
-* `tests/api.test.js` — 98 checks: validaciones 400/404/409, paginación, filtros, solapes,
+* `tests/api.test.js` — 101 checks: validaciones 400/404/409, paginación, filtros, solapes,
   garantía (R3), mora, devolución dañada (R4), prórroga (R6), kits todo-o-nada, pagos y sobrepago.
-* `tests/smoke.js` — 55 checks: carga la UI real en jsdom: paginadores, búsqueda server-side, lupa,
-  render de tablas, mensajes de validación, alta/baja de kit y flujo de reserva (fechas,
-  disponibilidad y resumen).
+* `tests/smoke.js` — 79 checks: carga la UI real en jsdom: paginadores, búsqueda server-side, lupa,
+  render de tablas, mensajes de validación, avisos en pantalla (sin `alert`), modal de alquileres
+  actuales, modal de retiro/devolución/prórroga, selector de fechas, alta/baja de kit y flujo de
+  reserva (fechas, disponibilidad y resumen).
 
 ## Pantallas
 Panel (KPIs, ingresos, disponibilidad por categoría, acciones rápidas) · Inventario · **Kits** ·
 Alquileres · Clientes/Cobranza. Inventario, kits, alquileres, clientes y deudores tienen
 **paginador propio** y búsqueda/filtros resueltos en el servidor.
+
+Los errores y avisos se muestran **dentro de la interfaz** (tarjetas/toasts con `role="alert"`),
+sin diálogos `alert()` del navegador. Al final de **Alquileres** hay dos botones:
+**Retiro / Devolución / Prórroga** (modal de operaciones) y **Ver alquileres actuales** (modal con
+los estados `RESERVADO`, `ACTIVO` y `VENCIDO`, paginado de 5 por página). Desde la lista, **Operar**
+abre el modal de operaciones con el ID cargado. Todos los campos de fecha abren el calendario nativo
+con un clic en cualquier parte del campo.
 
 ## Paginación (endpoints de listado)
 `GET /api/equipos`, `/api/alquileres`, `/api/clientes`, `/api/kits`, `/api/deudores`, `/api/vencimientos`
@@ -68,6 +76,8 @@ por equipo, `completo` por kit) sin cambiar el formato de array.
 ### Filtros
 * `/api/equipos?q=&categoria=&estado=` — busca en nombre, código, modelo y categoría.
 * `/api/alquileres?q=&estado=` — busca por ref (`ALQ-12`), cliente, equipo o kit.
+* `/api/alquileres?activos=1` — solo **alquileres actuales** (`RESERVADO`, `ACTIVO`, `VENCIDO`),
+  con el mismo envelope paginado. No se puede combinar con `estado` (400).
 * `/api/clientes?q=` y `/api/deudores?q=` — nombre / whatsapp / tipo y nombre / ref.
 * `/api/kits?q=&inicio=&fin=` — `inicio` y `fin` se envían juntos; habilitan el estado de disponibilidad.
 

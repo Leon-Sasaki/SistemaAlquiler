@@ -10,6 +10,22 @@ const pill = s => `<span class="pill p-${esc(s)}">${esc(s)}</span>`;
 const aviso = msg => `<div class="text-sm text-[#fca5a5] p-2">${esc(msg)}</div>`;
 const vacio = (cols, msg) => `<tr><td colspan="${cols}" class="py-3 text-sm text-[#94a3b8]">${esc(msg)}</td></tr>`;
 
+// Avisos en pantalla (reemplazan los alert del navegador).
+function notificar(mensaje, tipo = 'error') {
+  const cont = $('toasts');
+  if (!cont) return null;
+  const t = tipo === 'ok' ? 'ok' : tipo === 'info' ? 'info' : 'error';
+  const el = document.createElement('div');
+  el.className = 'toast toast-' + t;
+  el.setAttribute('role', t === 'error' ? 'alert' : 'status');
+  el.title = 'Clic para cerrar';
+  el.textContent = mensaje;
+  el.onclick = () => el.remove();
+  cont.appendChild(el);
+  setTimeout(() => { if (el.parentNode) el.remove(); }, t === 'error' ? 10000 : 6000);
+  return el;
+}
+
 // fetch que nunca lanza: devuelve el JSON o { error } para poder mostrarlo.
 const j = async (url, opts) => {
   try {
@@ -41,6 +57,7 @@ let CLI = [];         // página actual de clientes
 let DEUD = [];        // página actual de deudores
 let KITS = [];        // página actual de kits
 let INV = [];         // página actual de inventario
+let ALQ_ACT = [];     // página actual del modal de alquileres actuales
 let CLI_TODOS = [];   // clientes para el select de reserva
 let KITS_TODOS = [];  // kits para el select de reserva y el cálculo de precios
 let MODELOS = [];
@@ -56,7 +73,8 @@ const PAG = {
   alquileres:  { page: 1, limit: 10, total: 0, pages: 0, desde: 0, hasta: 0 },
   clientes:    { page: 1, limit: 8,  total: 0, pages: 0, desde: 0, hasta: 0 },
   kits:        { page: 1, limit: 6,  total: 0, pages: 0, desde: 0, hasta: 0 },
-  deudores:    { page: 1, limit: 5,  total: 0, pages: 0, desde: 0, hasta: 0 }
+  deudores:    { page: 1, limit: 5,  total: 0, pages: 0, desde: 0, hasta: 0 },
+  actuales:    { page: 1, limit: 5,  total: 0, pages: 0, desde: 0, hasta: 0 }
 };
 
 /* Navegación */
@@ -99,7 +117,8 @@ const PAGERS = {
   alquileres: { el: 'pAlq',   fn: () => cargarAlquileres() },
   clientes:   { el: 'pCli',   fn: () => cargarClientes() },
   kits:       { el: 'pKits',  fn: () => cargarKits() },
-  deudores:   { el: 'pDeud',  fn: () => cargarDeudores() }
+  deudores:   { el: 'pDeud',  fn: () => cargarDeudores() },
+  actuales:   { el: 'pAlqAct', fn: () => cargarAlqActuales() }
 };
 
 // Copia la metadata de paginación. Devuelve false si hay que reintentar en la última página.
@@ -157,7 +176,8 @@ const IDS_REQUERIDOS = ['kAct', 'kActSub', 'kEq', 'kCash', 'kKit', 'kVen', 'chIn
   'nAlq', 'dIni', 'dFin', 'mAlq', 'mPro', 'mRes', 'pAlqId', 'pTipo', 'pMonto', 'rPago', 'rRes', 'rTot',
   'rIni', 'rFin', 'rGar', 'rFechas', 'rDias', 'rEqCount', 'kIni', 'kFin', 'kMod', 'kCant', 'kComp', 'eCod', 'eNom', 'eMod', 'ePre',
   'cNom', 'cTip', 'cWsp', 'kCod', 'kNom', 'kDesc', 'kPre', 'sidebar', 'viewTitle', 'viewSub',
-  'reservaCard', 'tabsEst', 'dlgCli', 'dlgEq', 'dlgKit', 'pEq', 'pAlq', 'pCli', 'pKits', 'pDeud'];
+  'reservaCard', 'tabsEst', 'dlgCli', 'dlgEq', 'dlgKit', 'pEq', 'pAlq', 'pCli', 'pKits', 'pDeud',
+  'dlgAlqAct', 'tAlqAct', 'pAlqAct', 'alqActErr', 'toasts', 'dlgOperar'];
 
 async function load() {
   try {
@@ -297,23 +317,64 @@ async function cargarAlquileres() {
   renderAlq();
 }
 
+function textoEquipos(a) {
+  const grupos = new Map();
+  for (const e of a.equipos) {
+    const k = e.kit || 'Sueltos';
+    if (!grupos.has(k)) grupos.set(k, []);
+    grupos.get(k).push(e.nombre);
+  }
+  return [...grupos.entries()]
+    .map(([k, v]) => v.length > 1 ? `<b>${esc(k)}</b> (${v.length} eq.)` : esc(v[0]))
+    .join(' · ');
+}
+
 function renderAlq() {
   $('nAlq').textContent = PAG.alquileres.total + ' alquileres';
   $('tAlq').innerHTML = `<table class="w-full text-sm"><tr class="text-[#94a3b8]"><th class="text-left py-1">Referencia</th><th class="text-left">Cliente</th><th class="text-left">Equipos</th><th class="text-left">Período</th><th class="text-left">Estado</th><th class="text-right">Total</th><th></th></tr>` +
     (ALQ.length ? ALQ.map(a => {
-      const grupos = new Map();
-      for (const e of a.equipos) {
-        const k = e.kit || 'Sueltos';
-        if (!grupos.has(k)) grupos.set(k, []);
-        grupos.get(k).push(e.nombre);
-      }
-      const eqTxt = [...grupos.entries()]
-        .map(([k, v]) => v.length > 1 ? `<b>${esc(k)}</b> (${v.length} eq.)` : esc(v[0]))
-        .join(' · ');
-      return `<tr class="border-t"><td class="py-2">ALQ-${a.id}</td><td>${esc(a.cliente)}</td><td class="text-xs">${eqTxt}</td><td class="text-xs">${esc(a.fecha_retiro_prevista)} — ${esc(a.fecha_devolucion_prevista)}</td><td>${pill(a.estado)}</td><td class="text-right">${money(a.total_presupuesto + (a.total_mora || 0))}</td>
+      return `<tr class="border-t"><td class="py-2">ALQ-${a.id}</td><td>${esc(a.cliente)}</td><td class="text-xs">${textoEquipos(a)}</td><td class="text-xs">${esc(a.fecha_retiro_prevista)} — ${esc(a.fecha_devolucion_prevista)}</td><td>${pill(a.estado)}</td><td class="text-right">${money(a.total_presupuesto + (a.total_mora || 0))}</td>
       <td class="text-right"><button class="text-xs underline" onclick="verAlq(${a.id})">Operar</button></td></tr>`;
     }).join('') : vacio(7, 'Sin alquileres para ese filtro'));
   renderPager('alquileres');
+}
+
+/* ---------------- Alquileres actuales (modal paginado) ---------------- */
+async function abrirAlqActuales() {
+  limpiarAviso('alqActErr');
+  PAG.actuales.page = 1;
+  $('dlgAlqAct').showModal();
+  await cargarAlqActuales();
+}
+
+async function cargarAlqActuales() {
+  const p = PAG.actuales;
+  const params = new URLSearchParams({ activos: '1', page: p.page, limit: p.limit });
+  const d = await j('/api/alquileres?' + params.toString());
+  if (d.error) {
+    $('alqActErr').textContent = d.error;
+    $('tAlqAct').innerHTML = aviso(d.error);
+    $('pAlqAct').innerHTML = '';
+    return;
+  }
+  limpiarAviso('alqActErr');
+  if (!aplicarPagina('actuales', d)) return cargarAlqActuales();
+  ALQ_ACT = d.items;
+  renderAlqActuales();
+}
+
+function renderAlqActuales() {
+  $('tAlqAct').innerHTML = `<table class="w-full text-sm"><tr class="text-[#94a3b8]"><th class="text-left py-1">Referencia</th><th class="text-left">Cliente</th><th class="text-left">Equipos</th><th class="text-left">Período</th><th class="text-left">Estado</th><th class="text-right">Total</th><th></th></tr>` +
+    (ALQ_ACT.length ? ALQ_ACT.map(a =>
+      `<tr class="border-t"><td class="py-2 font-medium">ALQ-${a.id}</td><td>${esc(a.cliente)}</td><td class="text-xs">${textoEquipos(a)}</td><td class="text-xs">${esc(a.fecha_retiro_prevista)} — ${esc(a.fecha_devolucion_prevista)}</td><td>${pill(a.estado)}</td><td class="text-right">${money(a.total_presupuesto + (a.total_mora || 0))}</td>
+      <td class="text-right"><button class="text-xs underline" onclick="operarAlqDesdeModal(${a.id})">Operar</button></td></tr>`
+    ).join('') : vacio(7, 'No hay alquileres reservados, activos ni vencidos'));
+  renderPager('actuales');
+}
+
+function operarAlqDesdeModal(id) {
+  $('dlgAlqAct').close();
+  abrirOperar(id);
 }
 
 /* ---------------- CLIENTES / DEUDORES ---------------- */
@@ -396,26 +457,27 @@ function renderKits() {
 async function darDeBajaKit(id) {
   if (!confirm('Dar de baja el kit? Deja de ofrecerse pero se conserva el histórico.')) return;
   const r = await j('/api/kits/' + id, { method: 'DELETE' });
-  if (r.error) alert(r.error); else await load();
+  if (r.error) notificar(r.error);
+  else { notificar('Kit dado de baja. Se conserva el histórico.', 'ok'); await load(); }
 }
 
 async function verKits() {
   const ini = $('kIni').value, fin = $('kFin').value;
-  if (!ini || !fin) { alert('Elegí el rango de fechas para consultar la disponibilidad de los kits'); return; }
-  if (fin < ini) { alert('La fecha de fin no puede ser anterior a la de inicio'); return; }
+  if (!ini || !fin) { notificar('Elegí el rango de fechas para consultar la disponibilidad de los kits', 'info'); return; }
+  if (fin < ini) { notificar('La fecha de fin no puede ser anterior a la de inicio'); return; }
   PAG.kits.page = 1;
   await cargarKits();
 }
 
 async function conflictosKit(id) {
   const ini = $('kIni').value, fin = $('kFin').value;
-  if (!ini || !fin) { alert('Elegí el rango de fechas para ver los conflictos'); return; }
+  if (!ini || !fin) { notificar('Elegí el rango de fechas para ver los conflictos', 'info'); return; }
   const d = await j(`/api/kits/${id}/disponibilidad?inicio=${encodeURIComponent(ini)}&fin=${encodeURIComponent(fin)}`);
-  if (d.error) { alert(d.error); return; }
-  if (d.libre) { alert(`Kit disponible del ${ini} al ${fin}`); return; }
+  if (d.error) { notificar(d.error); return; }
+  if (d.libre) { notificar(`Kit disponible del ${ini} al ${fin}`, 'ok'); return; }
   const msg = d.conflictos.map(c =>
     `• ${c.equipo} (${c.codigo})\n  motivo: ${c.motivo}${c.rango ? '\n  rango: ' + c.rango : ''}${c.cliente ? '\n  cliente: ' + c.cliente : ''}`).join('\n\n');
-  alert('Kit BLOQUEADO\n\n' + msg);
+  notificar('Kit BLOQUEADO\n\n' + msg);
 }
 
 /* ---------------- Reserva: fechas, disponibilidad y selección ---------------- */
@@ -635,8 +697,7 @@ function consultar(equipoId) {
 }
 
 function verAlq(id) {
-  $('mAlq').value = id;
-  $('reservaCard').scrollIntoView({ behavior: 'smooth' });
+  abrirOperar(id);
 }
 
 /* ---------------- Operaciones ---------------- */
@@ -679,6 +740,13 @@ async function reservar() {
       $('rRes').innerHTML = '<span class="text-[#fca5a5]">Kit bloqueado → ' + esc(detalle) + '</span>';
     }
   }
+}
+
+function abrirOperar(id) {
+  $('mRes').textContent = '';
+  if (id) $('mAlq').value = id;
+  $('dlgOperar').showModal();
+  $('mAlq').focus();
 }
 
 function idAlquiler(inputId, msgId) {
@@ -739,7 +807,7 @@ async function bloquear(id, est) {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ equipo_id: id, estado: nuevo, observacion: 'panel' })
   });
-  if (r.error) alert(r.error); else await load();
+  if (r.error) notificar(r.error); else await load();
 }
 
 /* ---------- validación visible dentro de los modales ---------- */
@@ -941,5 +1009,15 @@ $('q').oninput = debounce(() => {
     cargarClientes(); cargarDeudores();
   } else if (v === 'kits') { PAG.kits.page = 1; cargarKits(); }
 }, 250);
+
+// Toda la caja de una fecha abre el calendario nativo (no solo el icono de la derecha).
+document.addEventListener('click', (e) => {
+  const el = e.target && e.target.closest ? e.target.closest('input[type="date"]') : null;
+  if (!el || typeof el.showPicker !== 'function') return;
+  // Si el clic fue sobre el icono nativo, lo maneja el propio navegador.
+  const r = el.getBoundingClientRect();
+  if (r.width > 0 && e.clientX >= r.right - 28) return;
+  try { el.showPicker(); } catch (err) { /* ya estaba abierto o el navegador no lo permite */ }
+});
 
 load();

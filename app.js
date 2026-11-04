@@ -119,8 +119,14 @@ function rangoOcupacion(a) {
   const hoy = hoyAR();
   const ini = a.fecha_retiro_real || a.fecha_retiro_prevista;
   const enCurso = ['RESERVADO', 'ACTIVO', 'VENCIDO'].includes(a.estado);
-  let fin = a.fecha_devolucion_prevista;
-  if (a.fecha_devolucion_real && a.fecha_devolucion_real > fin) fin = a.fecha_devolucion_real;
+  let fin;
+  if (a.estado === 'DEVUELTO') {
+    // ya devuelto: libera desde la fecha real de devolucion (aunque sea antes de la prevista)
+    fin = a.fecha_devolucion_real || a.fecha_devolucion_prevista;
+  } else {
+    fin = a.fecha_devolucion_prevista;
+    if (a.fecha_devolucion_real && a.fecha_devolucion_real > fin) fin = a.fecha_devolucion_real;
+  }
   if (enCurso && fin < hoy) fin = hoy;
   return { ini, fin };
 }
